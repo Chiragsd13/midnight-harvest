@@ -24,7 +24,7 @@ export class Creatures {
       this.scarecrows.push({
         mesh, x, z,
         triggered: false,
-        willScare: Math.random() < 0.55,
+        willScare: Math.random() < 0.85,
         state: 'idle',
         timer: Math.random() * Math.PI * 2,
         fleeDir: null,
@@ -78,16 +78,16 @@ export class Creatures {
         leg.add(strip);
       }
       const boot = new THREE.Mesh(
-        new THREE.BoxGeometry(0.12, 0.11, 0.2),
+        new THREE.CylinderGeometry(0.05, 0.08, 0.11, 6),
         woodDark
       );
       boot.position.set(0, -0.48, 0.04);
       leg.add(boot);
     }
 
-    const torso = addPart(new THREE.BoxGeometry(0.58, 0.92, 0.34), coatOuter, 0, 1.36, 0.02, 'torso');
+    const torso = addPart(new THREE.CylinderGeometry(0.24, 0.28, 0.92, 8), coatOuter, 0, 1.36, 0.02, 'torso');
     const belly = new THREE.Mesh(
-      new THREE.BoxGeometry(0.44, 0.62, 0.18),
+      new THREE.CylinderGeometry(0.18, 0.22, 0.62, 6),
       coatInner
     );
     belly.position.set(0, -0.04, 0.1);
@@ -127,14 +127,14 @@ export class Creatures {
 
     addPart(new THREE.BoxGeometry(1.6, 0.04, 0.04), woodFaded, 0, 1.95, 0);
 
-    const armGeo = new THREE.BoxGeometry(0.1, 0.55, 0.08);
-    const leftArm = addPart(armGeo, coatOuter, -0.6, 1.7, 0, 'leftArm');
-    const rightArm = addPart(armGeo, coatOuter, 0.6, 1.7, 0, 'rightArm');
+    const armGeo = new THREE.CylinderGeometry(0.045, 0.035, 0.55, 6);
+    const leftArm = addPart(armGeo, coatOuter, -0.4, 1.7, 0, 'leftArm');
+    const rightArm = addPart(armGeo, coatOuter, 0.4, 1.7, 0, 'rightArm');
     leftArm.rotation.z = 0.42;
     rightArm.rotation.z = -0.42;
     for (const [arm, side] of [[leftArm, -1], [rightArm, 1]]) {
       const hand = new THREE.Mesh(
-        new THREE.BoxGeometry(0.08, 0.12, 0.04),
+        new THREE.SphereGeometry(0.06, 6, 6),
         burlap
       );
       hand.position.set(0, -0.32, 0);
@@ -459,18 +459,21 @@ export class Creatures {
     audio.playCatMeow();
     const color = isBlack ? 0x040404 : 0x775522;
     const mat = new THREE.MeshStandardMaterial({ color });
-    const body = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.18, 0.45), mat);
+    
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.14, 0.45, 8), mat);
+    body.rotation.x = Math.PI / 2;
 
     for (const dx of [-0.07, 0.07]) {
-      const ear = new THREE.Mesh(new THREE.ConeGeometry(0.035, 0.07, 3), mat);
-      ear.position.set(dx, 0.11, -0.14);
+      const ear = new THREE.Mesh(new THREE.ConeGeometry(0.035, 0.07, 4), mat);
+      ear.position.set(dx, 0.18, 0.12);
+      ear.rotation.x = -Math.PI / 2;
       body.add(ear);
     }
     const eyeColor = isBlack ? 0xffcc00 : 0x44aa44;
     const eyeMat = new THREE.MeshBasicMaterial({ color: eyeColor });
     for (const dx of [-0.05, 0.05]) {
-      const eye = new THREE.Mesh(new THREE.SphereGeometry(0.018, 4, 4), eyeMat);
-      eye.position.set(dx, 0.05, -0.24);
+      const eye = new THREE.Mesh(new THREE.SphereGeometry(0.015, 6, 6), eyeMat);
+      eye.position.set(dx, 0.22, 0.05);
       body.add(eye);
     }
     // Tail

@@ -206,6 +206,7 @@ export class Effects {
           transparent: true,
           opacity: 0.08,
           depthWrite: false,
+          blending: THREE.AdditiveBlending,
         })
       );
       const data = {
@@ -541,6 +542,59 @@ export class Effects {
     if (!el) return;
     el.style.opacity = '1';
     setTimeout(() => { el.style.opacity = '0'; }, 280);
+  }
+
+  /* ---- sky clouds ---- */
+  createClouds(count = 12) {
+    const texture = createMistTexture(); // reuse mist texture for puffy clouds
+    this.clouds = [];
+    this.cloudData = [];
+
+    for (let i = 0; i < count; i++) {
+      const sprite = new THREE.Sprite(
+        new THREE.SpriteMaterial({
+          map: texture,
+          color: 0x151a28, // dark moody blue
+          transparent: true,
+          opacity: 0.35 + Math.random() * 0.45,
+          depthWrite: false,
+        })
+      );
+      const data = {
+        driftX: (Math.random() - 0.5) * 0.5,
+        driftZ: (Math.random() - 0.5) * 0.5,
+        scaleX: 180 + Math.random() * 140,
+        scaleY: 80 + Math.random() * 80,
+      };
+      
+      sprite.position.set((Math.random() - 0.5) * 200, 50 + Math.random() * 20, (Math.random() - 0.5) * 200);
+      sprite.scale.set(data.scaleX, data.scaleY, 1);
+      this.scene.add(sprite);
+      this.clouds.push(sprite);
+      this.cloudData.push(data);
+    }
+  }
+
+  updateClouds(dt, playerPos) {
+    if (!this.clouds || !this.clouds.length) return;
+    for (let i = 0; i < this.clouds.length; i++) {
+      const sprite = this.clouds[i];
+      const data = this.cloudData[i];
+      
+      // Drift slowly
+      sprite.position.x += data.driftX * dt;
+      sprite.position.z += data.driftZ * dt;
+
+      // Wrap around the player
+      const dx = sprite.position.x - playerPos.x;
+      const dz = sprite.position.z - playerPos.z;
+      if (dx * dx + dz * dz > 220 * 220) {
+        const angle = Math.random() * Math.PI * 2;
+        const radius = 190;
+        sprite.position.x = playerPos.x + Math.cos(angle) * radius;
+        sprite.position.z = playerPos.z + Math.sin(angle) * radius;
+      }
+    }
   }
 
   static updateSmoke(progress) {

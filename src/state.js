@@ -6,6 +6,8 @@ export const state = {
   luck: 50,           // hidden: black cat lowers this
   elapsed: 0,         // real seconds since gameplay start
   isRunning: false,
+  isCoughing: false,
+  coughIntensity: 0,
   stamina: 100,
   runTimeLeft: 10,
   runCooldown: 0,
@@ -57,7 +59,8 @@ export function shouldEvent(baseChance) {
 export function reset() {
   Object.assign(state, {
     phase: 'menu', health: 100, luck: 50, elapsed: 0,
-    isRunning: false, stamina: 100, runTimeLeft: 10, runCooldown: 0, fear: 0,
+    isRunning: false, isCoughing: false, coughIntensity: 0,
+    stamina: 100, runTimeLeft: 10, runCooldown: 0, fear: 0,
     weather: 'clear', fireProgress: 0,
     distanceTraveled: 0, endingType: null,
   });

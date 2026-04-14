@@ -227,7 +227,7 @@ export class World {
     this.scene.background = new THREE.Color(0x060913);
     // Very large field — fog hides the edges, and the corn patch recenters
     // around the player so the rows keep reading as endless.
-    this.fieldSize = 400;
+    this.fieldSize = 180;
     this.stalkData = [];
     this.landmines = [];
     this.exitPos = new THREE.Vector3();
@@ -919,8 +919,8 @@ export class World {
   /* ---- cornfield with mixed colors ---- */
   _corn() {
     const half = this.fieldSize / 2;
-    // Extremely tight spacing to make the crops incredibly dense and oppressive
-    const sp = 0.45;
+    // Optimized density spacing. Trims hidden geometry bloat massively to lift GPU overhead.
+    const sp = 0.55;
     const rows = Math.ceil(this.fieldSize / sp);
     const max = rows * rows;
     const dummy = new THREE.Object3D();
@@ -945,7 +945,7 @@ export class World {
       new THREE.Color(0x34261a),
     ];
 
-    const stalkGeo = new THREE.CylinderGeometry(0.02, 0.035, 3.5, 5);
+    const stalkGeo = new THREE.CylinderGeometry(0.02, 0.035, 3.5, 6);
     const stalkTex = createStalkTexture();
     const stalkMat = new THREE.MeshStandardMaterial({ roughness: 0.85, map: stalkTex });
     const stalks = new THREE.InstancedMesh(stalkGeo, stalkMat, max);
@@ -1317,36 +1317,11 @@ export class World {
       fixture.position.set(px, 5.45, pz - (isNS ? 2.5 : 0));
       this.scene.add(fixture);
 
-      // Warm light (visible from distance as a glow)
-      const rl = new THREE.PointLight(0xffaa44, 1.2, 65, 1.8);
+      // Dim, realistic light (local glow only)
+      const rl = new THREE.PointLight(0xffaa44, 0.45, 18, 2.0);
       rl.position.set(px, 5.3, pz - (isNS ? 2 : 0));
       this.scene.add(rl);
     }
-
-    // Tall beacon light — visible from across the entire field
-    const beaconPole = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.04, 0.06, 10, 4),
-      new THREE.MeshStandardMaterial({ color: 0x444444 })
-    );
-    beaconPole.position.set(x, 5, z);
-    this.scene.add(beaconPole);
-    const beacon = new THREE.PointLight(0xffcc66, 2.5, 120, 1.2);
-    beacon.position.set(x, 10.5, z);
-    this.scene.add(beacon);
-    this.highwayBeacon = beacon;
-
-    // Sky glow above highway (visible through fog as warm haze)
-    const glowSprite = new THREE.Sprite(new THREE.SpriteMaterial({
-      color: 0xffaa44,
-      transparent: true,
-      opacity: 0.18,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-      fog: false,
-    }));
-    glowSprite.position.set(x, 16, z);
-    glowSprite.scale.set(40, 25, 1);
-    this.scene.add(glowSprite);
 
     // Guardrail (metal barrier along one side)
     const railMat = new THREE.MeshStandardMaterial({ color: 0x555555, metalness: 0.5, roughness: 0.6 });
@@ -1746,7 +1721,7 @@ export class World {
     const t = Date.now() * 0.001;
     if (this.fireGlows) {
       for (const fg of this.fireGlows) {
-        const r = fg.baseR + progress * 60;
+        const r = fg.baseR + progress * 90;
         fg.light.position.x = this.fireOrigin.x + Math.cos(fg.angle + t * 0.1) * r;
         fg.light.position.z = this.fireOrigin.z + Math.sin(fg.angle + t * 0.1) * r;
         fg.light.intensity = progress * 2.5;
@@ -1757,7 +1732,7 @@ export class World {
     // Animate volumetric fire blazes and smoke columns
     if (this.fireWalls) {
       for (const fw of this.fireWalls) {
-        const r = fw.baseR + progress * 70;
+        const r = fw.baseR + progress * 95;
         
         // Swaying fire base
         const xPos = this.fireOrigin.x + Math.cos(fw.angle + t * 0.05) * r;

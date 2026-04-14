@@ -64,7 +64,8 @@ effects.createFireflies();
 effects.createDust();
 effects.createGroundMist();
 effects.createAsh();
-creatures.spawnScarecrows(30, world.fieldSize);
+effects.createClouds(); // Add sky clouds
+creatures.spawnScarecrows(60, world.fieldSize);
 
 /* ---- pick weather ONCE per round (realistic: locked for the session) ---- */
 const WEATHER_OPTIONS = ['clear', 'clear', 'clear', 'foggy', 'rain', 'rain', 'storm', 'snow'];
@@ -80,6 +81,7 @@ let coughTimer = 0;
 let carTimer = 8 + Math.random() * 10;
 let lastTime = 0;
 const coughOverlay = $('cough-overlay');
+let coughResetTimeout = null;
 
 /* ---- resize ---- */
 window.addEventListener('resize', () => {
@@ -133,6 +135,25 @@ function syncRunHud() {
   hudRun.classList.remove('active', 'cooldown');
   if (state.runCooldown > 0) hudRun.classList.add('cooldown');
   else if (state.isRunning) hudRun.classList.add('active');
+}
+
+function triggerCoughReaction(intensity = 0.5, durationMs = 700) {
+  state.isCoughing = true;
+  state.coughIntensity = intensity;
+
+  if (coughOverlay) {
+    const opacity = Math.min(0.28, 0.08 + intensity * 0.14);
+    coughOverlay.style.transition = `opacity ${Math.max(120, Math.round(durationMs * 0.18))}ms ease`;
+    coughOverlay.style.opacity = String(opacity);
+  }
+
+  if (coughResetTimeout) clearTimeout(coughResetTimeout);
+  coughResetTimeout = setTimeout(() => {
+    state.isCoughing = false;
+    state.coughIntensity = 0;
+    if (coughOverlay) coughOverlay.style.opacity = '0';
+    coughResetTimeout = null;
+  }, durationMs);
 }
 
 async function playWakeBriefing() {
@@ -275,7 +296,7 @@ async function startGame() {
 
   // Start lying on right side — head near ground, body tilted sideways
   camera.position.set(0, groundY + 0.14, 0);
-  camera.quaternion.setFromEuler(new THREE.Euler(0.08, 0.35, 1.22, 'YXZ'));
+  player.setView(0.08, 0.35, 1.22);
 
   // Eyes start closed (eyelids cover the screen)
   setEyelids('none', 0);
@@ -289,6 +310,7 @@ async function startGame() {
 
   // Stand up from sitting position
   await animateStandUp(groundY);
+  player.syncViewFromCamera(true);
 
   // Clean up intro overlays
   eyelidTop.style.display = 'none';
@@ -308,9 +330,11 @@ async function startGame() {
 
     if (startedViaTouch) {
       // No pointer lock on touch; directly unlock player controls
+      player.syncViewFromCamera(true);
       player.locked = true;
       touch.enable();
     } else {
+      player.syncViewFromCamera(true);
       canvas.requestPointerLock();
     }
 
@@ -318,11 +342,10 @@ async function startGame() {
     document.body.classList.add('playing');
     instructions.classList.add('hidden');
 
-    // Start ambient audio layers
-    audio.startWind(0.14);
-    audio.startCrickets();
-    audio.startFire(0.03);
-    audio.startDrone();
+    // Start ambient audio layers (kept extremely minimal for quiet night atmosphere).
+    // Wind only — fire presence is handled by discrete crackle events + visual FX
+    // (the continuous 62Hz fire drone was unpleasant and has been removed).
+    audio.startWind(0.03);
 
     // Apply round weather
     effects.setWeather(roundWeather, audio);
@@ -526,10 +549,6 @@ function gameLoop(time) {
     effects.updateFireParticles(dt, world.fireOrigin, state.fireProgress, world.wind);
     Effects.updateSmoke(state.fireProgress);
 
-    // Increase fire audio over time
-    audio.setAmbientGain('fire', 0.012 + state.fireProgress * 0.1);
-    audio.setAmbientGain('drone', 0.012 + state.fireProgress * 0.04);
-
     player.update(dt, state, audio, world);
     world.updateAtmosphere(dt, player.pos(), state.fireProgress, state.weather);
     creatures.updateScarecrows(player.xz(), player.movementXZ(), dt, audio, () => {
@@ -544,6 +563,7 @@ function gameLoop(time) {
     effects.updateFireflies(dt, player.pos(), state.elapsed, state.fireProgress);
     effects.updateDust(dt, player.pos(), world.wind);
     effects.updateAsh(dt, player.pos(), world.wind, state.fireProgress);
+    effects.updateClouds(dt, player.pos());
 
     updateHUD();
     updateCoughing(dt);
@@ -667,34 +687,21 @@ function updateCoughing(dt) {
   if (coughTimer >= interval) {
     coughTimer = 0;
     audio.playCough(intensity);
-
-    // Trigger hand coughing animation
-    state.isCoughing = true;
-    setTimeout(() => { state.isCoughing = false; }, 600 + intensity * 400);
-
-    // Visual: brief red/dark vignette pulse
-    if (coughOverlay) {
-      coughOverlay.style.opacity = String(0.3 + intensity * 0.5);
-      setTimeout(() => { coughOverlay.style.opacity = '0'; }, 150 + intensity * 200);
-    }
-
-    // Camera shake on cough (more intense later)
-    if (progress > 0.3) {
-      shakeCamera(80 + intensity * 120, 0.01 + intensity * 0.04);
-    }
+    triggerCoughReaction(intensity, 520 + intensity * 420);
   }
 }
 
 /* ---- fire catches player (fire radius expands, if player is inside = death) ---- */
 function checkFireCatchPlayer() {
+  if (state.phase !== 'playing') return;
   const p = player.xz();
   const dx = p.x - world.fireOrigin.x;
   const dz = p.z - world.fireOrigin.z;
   const dist = Math.sqrt(dx * dx + dz * dz);
-  // Fire radius expands over time
-  const fireRadius = 10 + state.fireProgress * 90;
-  if (dist < fireRadius && state.fireProgress > 0.3) {
-    triggerEnding('fire');
+  // Fire visual radius expands around progress * 90-95. Lethal boundary is 85.
+  const lethalRadius = 10 + state.fireProgress * 85;
+  if (dist < lethalRadius && state.fireProgress > 0.3) {
+    triggerBurningDeath();
   }
 }
 
@@ -756,25 +763,16 @@ function triggerSuffocation() {
   state.phase = 'dying';
   document.exitPointerLock();
 
-  // Hand automatically tries to cover mouth
-  state.isCoughing = true;
+  triggerCoughReaction(1, 3200);
 
   // Intense coughing fit
   audio.playSuffocationFit();
 
-  // Screen goes dark red, blurry
-  if (coughOverlay) {
-    coughOverlay.style.transition = 'opacity 2s ease';
-    coughOverlay.style.opacity = '1.0';
-  }
   const smokeEl = document.getElementById('smoke-overlay');
   if (smokeEl) {
     smokeEl.style.transition = 'opacity 1.5s ease';
     smokeEl.style.opacity = '1';
   }
-
-  // Heavy camera shake (stagger)
-  shakeCamera(1500, 0.18);
 
   // Second coughing fit after 1.5s
   setTimeout(() => audio.playSuffocationFit(), 1200);
@@ -815,12 +813,12 @@ function triggerSuffocation() {
 
     if (t >= 1) {
       clearInterval(fallInterval);
-      state.isCoughing = false; // drop hand
+      state.isCoughing = false;
+      state.coughIntensity = 0;
       // Final gasp, then show death screen
       setTimeout(() => {
         state.phase = 'ended';
         state.endingType = 'fire';
-        const e = ENDINGS.fire;
         endTitle.textContent = 'SUFFOCATED';
         endTitle.className = 'death';
         endSubtitle.textContent = 'The smoke filled your lungs. You collapsed in the field, unable to breathe.';
@@ -828,6 +826,63 @@ function triggerSuffocation() {
         endScreen.classList.remove('hidden');
         requestAnimationFrame(() => endScreen.classList.add('show'));
       }, 500);
+    }
+  }, 16);
+}
+
+function triggerBurningDeath() {
+  state.phase = 'dying';
+  
+  const dmgOverlay = document.getElementById('damage-overlay');
+  if (dmgOverlay) {
+    dmgOverlay.style.background = 'radial-gradient(circle, rgba(0,0,0,0) 0%, rgba(200,40,0,0.6) 60%, rgba(255,100,0,0.9) 100%)';
+    dmgOverlay.style.transition = 'opacity 1s ease';
+    dmgOverlay.style.opacity = '1.0';
+  }
+
+  // Brutal sound
+  audio.playJumpScare();
+  setTimeout(() => audio.playExplosion(), 200);
+
+  // Intense shake
+  shakeCamera(2000, 0.4);
+
+  let fallStart = Date.now();
+  const startY = camera.position.y;
+  const startX = camera.position.x;
+  const startZ = camera.position.z;
+  const startRotZ = camera.rotation.z;
+  const startRotX = camera.rotation.x;
+  const fallDuration = 1800; // faster fall than suffocation
+  
+  const fallInterval = setInterval(() => {
+    const t = Math.min(1, (Date.now() - fallStart) / fallDuration);
+    
+    // Drop
+    const yDrop = t * t * (startY - 0.2); 
+    camera.position.y = startY - yDrop;
+    
+    // Thrashing body
+    const thrash = (1 - t) * Math.sin(t * Math.PI * 18) * 0.3;
+    camera.position.x = startX + thrash * Math.cos(t * 10);
+    camera.position.z = startZ + thrash * Math.sin(t * 10);
+
+    // Roll backwards and sideways
+    camera.rotation.z = startRotZ + t * 0.8;
+    camera.rotation.x = startRotX - t * 1.5;
+
+    if (t >= 1) {
+      clearInterval(fallInterval);
+      setTimeout(() => {
+        state.phase = 'ended';
+        state.endingType = 'burnt';
+        endTitle.textContent = 'BURNT ALIVE';
+        endTitle.className = 'death';
+        endSubtitle.textContent = 'The wall of flames overtook you. There was nowhere left to run.';
+        endDetail.textContent = 'You have become ash in the wind.';
+        endScreen.classList.remove('hidden');
+        requestAnimationFrame(() => endScreen.classList.add('show'));
+      }, 800);
     }
   }, 16);
 }
@@ -852,18 +907,54 @@ function scheduleEvents(dt) {
     }
   }
 
-  const baseInterval = 3 + Math.random() * 4;
-  const escalation = Math.max(0.5, 1.0 - state.fireProgress * 0.6);
+  // Much faster event cooldown base 
+  const baseInterval = 1.5 + Math.random() * 2;
+  const escalation = Math.max(0.3, 1.0 - state.fireProgress * 0.8);
   if (eventTimer > baseInterval * escalation) {
     eventTimer = 0;
     randomEvent();
   }
 }
 
+function triggerLightning() {
+  const oldBg = world.scene.background.clone();
+  const oldFog = world.scene.fog.color.clone();
+  const white = new THREE.Color(0xddeeff);
+  
+  // Flash 1
+  world.scene.background.copy(white);
+  world.scene.fog.color.copy(white);
+  
+  setTimeout(() => {
+    world.scene.background.copy(oldBg);
+    world.scene.fog.color.copy(oldFog);
+  }, 100);
+
+  // Flash 2
+  setTimeout(() => {
+    world.scene.background.copy(white);
+    world.scene.fog.color.copy(white);
+  }, 180);
+
+  setTimeout(() => {
+    world.scene.background.copy(oldBg);
+    world.scene.fog.color.copy(oldFog);
+  }, 250);
+
+  // Rolling thunder
+  setTimeout(() => {
+    audio.playExplosion();
+    shakeCamera(800, 0.1);
+  }, 1200 + Math.random() * 800);
+}
+
 function randomEvent() {
   const p = player.pos();
   const progress = state.fireProgress;
   const roll = Math.random();
+
+  // Remove pacing handcuffs to allow heavy events earlier.
+  // We want jump scares to hit hard.
 
   if (roll < 0.12) {
     if (shouldEvent(0.4)) creatures.spawnCrows(p, audio);
@@ -874,30 +965,35 @@ function randomEvent() {
     creatures.spawnSquirrel(p, audio);
   } else if (roll < 0.30) {
     audio.playOwl();
-  } else if (roll < 0.38 && shouldEvent(0.25)) {
+  } else if (roll < 0.36) {
     audio.playWhisper();
-  } else if (roll < 0.45 && progress > 0.15) {
+  } else if (roll < 0.42) {
     audio.playSomethingMoving();
-    if (Math.random() < 0.3) shakeCamera(200, 0.03);
-  } else if (roll < 0.52 && progress > 0.2) {
-    audio.playHeartbeat(80 + state.fear + progress * 40);
-  } else if (roll < 0.58) {
+    if (Math.random() < 0.4) shakeCamera(250, 0.05);
+  } else if (roll < 0.48) {
+    // Brand new engaging feature: Dynamic Lightning Storms
+    triggerLightning();
+  } else if (roll < 0.54) {
+    audio.playHeartbeat(90 + state.fear + progress * 60);
+  } else if (roll < 0.60) {
     audio.playRustle();
-  } else if (roll < 0.64 && progress > 0.3) {
+  } else if (roll < 0.66) {
     audio.playDistantScream();
-  } else if (roll < 0.70 && progress > 0.25) {
+  } else if (roll < 0.72) {
     audio.playBreathing();
-    if (Math.random() < 0.4) shakeCamera(150, 0.02);
-  } else if (roll < 0.74 && progress > 0.4) {
+    if (Math.random() < 0.6) shakeCamera(200, 0.04);
+  } else {
+    // Jump scare bracket explicitly opens up widely (28% overall chance per event trigger)
     audio.playSomethingMoving();
-    setTimeout(() => audio.playWhisper(), 800);
+    setTimeout(() => audio.playWhisper(), 400);
     setTimeout(() => {
-      if (Math.random() < 0.3) {
+      // Much higher odds of direct jump scare
+      if (Math.random() < 0.65) {
         audio.playJumpScare();
         Effects.scareFlash();
-        shakeCamera(400, 0.15);
+        shakeCamera(500, 0.2);
       }
-    }, 2200);
+    }, 1200);
   }
 }
 

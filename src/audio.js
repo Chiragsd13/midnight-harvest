@@ -11,7 +11,8 @@ export class Audio {
     try {
       this.ctx = new AudioContext();
       this.master = this.ctx.createGain();
-      this.master.gain.value = 0.34;
+      // Increased master overall volume as requested
+      this.master.gain.value = 0.75;
       this.master.connect(this.ctx.destination);
     } catch { /* audio unsupported */ }
   }
@@ -58,14 +59,21 @@ export class Audio {
 
   startCrickets() {
     if (!this.ctx) return;
+    // Replace harsh triangular alarm with rhythmic high-pass noise for organic chirps
+    const s = this._noise(2, true);
     const o = this.ctx.createOscillator();
-    o.type = 'triangle'; o.frequency.value = 2900;
-    const m = this.ctx.createOscillator(); m.frequency.value = 18;
-    const mg = this._gain(720); m.connect(mg); mg.connect(o.frequency);
-    const f = this._filter('bandpass', 2600, 1.2);
-    const g = this._gain(0.005);
-    this._pipe(o, f, g); o.start(); m.start();
-    this.ambient.push({ src: o, g, tag: 'crickets' });
+    o.frequency.value = 16; // Chirp rate
+    const mg = this._gain(1);
+    o.connect(mg);
+    const g = this._gain(0.015);
+    mg.connect(g.gain);
+    
+    // Smooth resonant bandpass for cricket tone
+    const f = this._filter('bandpass', 3200, 5);
+    this._pipe(s, f, g);
+    s.start(); o.start();
+    this.ambient.push({ src: s, g, tag: 'crickets' });
+    this.ambient.push({ src: o, g: this._gain(0), tag: 'crickets' });
   }
 
   startRain(intensity = 0.5) {
@@ -151,25 +159,25 @@ export class Audio {
 
   /* === ONE-SHOTS === */
 
-  // Footstep: muffled dirt crunch
+  // Footstep: muffled dirt crunch (Made louder)
   playFootstep() {
     if (!this.ctx) return;
     const t = this.ctx.currentTime;
     const s = this._noise(0.09);
     const f = this._filter('lowpass', 400 + Math.random() * 500);
-    const g = this._gain(0.08 + Math.random() * 0.04);
+    const g = this._gain(0.45 + Math.random() * 0.15); // Much louder base gain
     g.gain.setValueAtTime(g.gain.value, t);
     g.gain.exponentialRampToValueAtTime(0.001, t + 0.09);
     this._pipe(s, f, g); s.start(t); s.stop(t + 0.12);
   }
 
-  // Corn rustle: brushing past stalks while walking
+  // Corn rustle: brushing past stalks while walking (Made louder)
   playCornRustle() {
     if (!this.ctx) return;
     const t = this.ctx.currentTime;
     const s = this._noise(0.3);
     const f = this._filter('bandpass', 1700 + Math.random() * 900, 0.9);
-    const g = this._gain(0.035 + Math.random() * 0.018);
+    const g = this._gain(0.18 + Math.random() * 0.08); // Significantly louder
     g.gain.setValueAtTime(g.gain.value, t);
     g.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
     this._pipe(s, f, g); s.start(t); s.stop(t + 0.35);
@@ -428,43 +436,62 @@ export class Audio {
     }
   }
 
-  // Cough: air burst through constricted throat
+  // Cough: two-stage throat/chest burst with a softer rasp tail.
   playCough(intensity = 0.5) {
     if (!this.ctx) return;
     const t = this.ctx.currentTime;
-    const vol = 0.15 + intensity * 0.35;
-    const dur = 0.18 + intensity * 0.15;
+    const vol = 0.22 + intensity * 0.24;
+    const firstDur = 0.16 + intensity * 0.08;
+    const secondDur = 0.12 + intensity * 0.08;
+    const secondAt = t + 0.08 + intensity * 0.035;
 
-    // Throat burst: bandpass noise at vocal tract resonance
-    const s = this._noise(dur);
-    const f = this._filter('bandpass', 900 + Math.random() * 400, 3);
-    const g = this._gain(0);
-    g.gain.setValueAtTime(0, t);
-    g.gain.linearRampToValueAtTime(vol, t + 0.02);
-    g.gain.exponentialRampToValueAtTime(vol * 0.3, t + dur * 0.4);
-    g.gain.linearRampToValueAtTime(vol * 0.5, t + dur * 0.5);
-    g.gain.exponentialRampToValueAtTime(0.001, t + dur);
-    this._pipe(s, f, g); s.start(t); s.stop(t + dur + 0.05);
+    const burst1 = this._noise(firstDur);
+    const body1 = this._filter('bandpass', 720 + Math.random() * 90, 1.35);
+    const rasp1 = this._filter('highpass', 2100 + intensity * 300);
+    const bodyGain1 = this._gain(0);
+    const raspGain1 = this._gain(0);
+    bodyGain1.gain.setValueAtTime(0, t);
+    bodyGain1.gain.linearRampToValueAtTime(vol, t + 0.012);
+    bodyGain1.gain.exponentialRampToValueAtTime(0.001, t + firstDur);
+    raspGain1.gain.setValueAtTime(0, t);
+    raspGain1.gain.linearRampToValueAtTime(vol * 0.22, t + 0.01);
+    raspGain1.gain.exponentialRampToValueAtTime(0.001, t + firstDur * 0.8);
+    burst1.connect(rasp1); rasp1.connect(raspGain1); raspGain1.connect(this.master);
+    this._pipe(burst1, body1, bodyGain1); burst1.start(t); burst1.stop(t + firstDur + 0.03);
 
-    // Sub thump from diaphragm
-    const o = this.ctx.createOscillator();
-    o.frequency.setValueAtTime(65, t);
-    o.frequency.exponentialRampToValueAtTime(35, t + 0.12);
-    const og = this._gain(vol * 0.4);
-    og.gain.setValueAtTime(vol * 0.4, t);
-    og.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
-    this._pipe(o, og); o.start(t); o.stop(t + 0.15);
+    const burst2 = this._noise(secondDur);
+    const body2 = this._filter('bandpass', 840 + Math.random() * 110, 1.15);
+    const bodyGain2 = this._gain(0);
+    bodyGain2.gain.setValueAtTime(0, secondAt);
+    bodyGain2.gain.linearRampToValueAtTime(vol * 0.72, secondAt + 0.01);
+    bodyGain2.gain.exponentialRampToValueAtTime(0.001, secondAt + secondDur);
+    this._pipe(burst2, body2, bodyGain2); burst2.start(secondAt); burst2.stop(secondAt + secondDur + 0.03);
 
-    // Wheeze tail (higher pitched, breathy)
-    if (intensity > 0.4) {
-      const w = this._noise(0.25);
-      const wf = this._filter('bandpass', 2200 + Math.random() * 600, 5);
-      const wg = this._gain(0);
-      const wStart = t + dur * 0.6;
-      wg.gain.setValueAtTime(0, wStart);
-      wg.gain.linearRampToValueAtTime(vol * 0.15, wStart + 0.05);
-      wg.gain.exponentialRampToValueAtTime(0.001, wStart + 0.25);
-      this._pipe(w, wf, wg); w.start(wStart); w.stop(wStart + 0.3);
+    const throat = this.ctx.createOscillator();
+    throat.type = 'triangle';
+    throat.frequency.setValueAtTime(145, t);
+    throat.frequency.exponentialRampToValueAtTime(92, t + 0.12);
+    throat.frequency.exponentialRampToValueAtTime(70, secondAt + secondDur);
+    const throatFilter = this._filter('lowpass', 520);
+    const throatGain = this._gain(0);
+    throatGain.gain.setValueAtTime(0.001, t);
+    throatGain.gain.linearRampToValueAtTime(vol * 0.55, t + 0.018);
+    throatGain.gain.exponentialRampToValueAtTime(0.001, secondAt + secondDur + 0.05);
+    this._pipe(throat, throatFilter, throatGain);
+    throat.start(t);
+    throat.stop(secondAt + secondDur + 0.08);
+
+    if (intensity > 0.42) {
+      const tailAt = secondAt + secondDur * 0.55;
+      const tail = this._noise(0.18);
+      const tailFilter = this._filter('bandpass', 1800 + Math.random() * 300, 2.2);
+      const tailGain = this._gain(0);
+      tailGain.gain.setValueAtTime(0, tailAt);
+      tailGain.gain.linearRampToValueAtTime(vol * 0.12, tailAt + 0.03);
+      tailGain.gain.exponentialRampToValueAtTime(0.001, tailAt + 0.18);
+      this._pipe(tail, tailFilter, tailGain);
+      tail.start(tailAt);
+      tail.stop(tailAt + 0.2);
     }
   }
 
@@ -475,10 +502,15 @@ export class Audio {
     for (let i = 0; i < 6; i++) {
       const at = t + i * 0.28 + Math.random() * 0.06;
       const dur = 0.2 + Math.random() * 0.1;
-      const vol = 0.4 + Math.random() * 0.2;
+      const vol = 0.5 + Math.random() * 0.3; // Louder end coughs
 
       const s = this._noise(dur);
-      const f = this._filter('bandpass', 700 + Math.random() * 500, 4);
+      const f = this._filter('bandpass', 750 + Math.random() * 100, 1.5);
+      
+      const fh = this._filter('highpass', 2400);
+      const gh = this._gain(vol * 0.3);
+      s.connect(fh); fh.connect(gh); gh.connect(this.master);
+
       const g = this._gain(0);
       g.gain.setValueAtTime(0, at);
       g.gain.linearRampToValueAtTime(vol, at + 0.015);
@@ -489,10 +521,10 @@ export class Audio {
 
       // Each cough has a body thud
       const o = this.ctx.createOscillator();
-      o.frequency.setValueAtTime(55, at);
+      o.frequency.setValueAtTime(65, at);
       o.frequency.exponentialRampToValueAtTime(28, at + 0.1);
-      const og = this._gain(vol * 0.3);
-      og.gain.setValueAtTime(vol * 0.3, at);
+      const og = this._gain(vol * 0.8);
+      og.gain.setValueAtTime(vol * 0.8, at);
       og.gain.exponentialRampToValueAtTime(0.001, at + 0.12);
       this._pipe(o, og); o.start(at); o.stop(at + 0.12);
     }
