@@ -1,5 +1,7 @@
 # Midnight Harvest
 
+**[Play the game online here!](https://midnight-harvest.vercel.app/)**
+
 `Midnight Harvest` is a first-person horror survival game prototype set in an endless-feeling cornfield at midnight while a spreading fire slowly turns the farm into a death trap.
 
 The player wakes up disoriented on the ground, realizes the field is filling with smoke, and has roughly five minutes to find the highway and escape before the fire or the air kills them.
