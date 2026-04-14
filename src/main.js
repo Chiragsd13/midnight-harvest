@@ -555,8 +555,13 @@ function gameLoop(time) {
     world.updateAtmosphere(dt, player.pos(), state.fireProgress, state.weather);
     creatures.updateScarecrows(player.xz(), player.movementXZ(), dt, audio, () => {
       Effects.scareFlash();
-      shakeCamera(260, 0.055);
-      state.fear += 15;
+      const fearOverlay = document.getElementById('fear-overlay');
+      if (fearOverlay) {
+        fearOverlay.style.opacity = '1';
+        setTimeout(() => fearOverlay.style.opacity = '0', 400); // 400ms flash
+      }
+      shakeCamera(500, 0.25); // Heavy shake for better jump scare
+      state.fear += 35;
     });
     creatures.updateAnimals(dt);
     effects.updateRain(dt, player.pos(), world.wind);

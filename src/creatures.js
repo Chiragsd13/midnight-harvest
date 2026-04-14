@@ -8,8 +8,8 @@ export class Creatures {
     this.animals = [];
   }
 
-  /* ---- scarecrows (detailed, scary) ---- */
-  spawnScarecrows(count = 18, fieldSize = 200) {
+  /* ---- scarecrows (DC-inspired terror geometry) ---- */
+  spawnScarecrows(count = 36, fieldSize = 200) {
     for (let i = 0; i < count; i++) {
       const x = (Math.random() - 0.5) * fieldSize * 0.85;
       const z = (Math.random() - 0.5) * fieldSize * 0.85;
@@ -45,15 +45,16 @@ export class Creatures {
   _buildScarecrow() {
     const g = new THREE.Group();
 
-    const woodDark = new THREE.MeshStandardMaterial({ color: 0x1a1208, roughness: 1 });
-    const woodFaded = new THREE.MeshStandardMaterial({ color: 0x2f2112, roughness: 1 });
-    const coatOuter = new THREE.MeshStandardMaterial({ color: 0x18130d, roughness: 0.98 });
-    const coatInner = new THREE.MeshStandardMaterial({ color: 0x0e0c09, roughness: 1 });
-    const burlap = new THREE.MeshStandardMaterial({ color: 0x4c3922, roughness: 0.92 });
-    const strawMat = new THREE.MeshStandardMaterial({ color: 0x86753a, roughness: 1 });
-    const stitchMat = new THREE.MeshBasicMaterial({ color: 0x0b0a08, side: THREE.DoubleSide });
-    const emberEye = new THREE.MeshBasicMaterial({ color: 0xff7a1f });
-    const dimEye = new THREE.MeshBasicMaterial({ color: 0xc64119 });
+    // DC Scarecrow aesthetic: Tattered dark overcoat, noose, fear-gas tubes, gas-mask eyes, needle hands
+    const woodDark = new THREE.MeshStandardMaterial({ color: 0x110d08, roughness: 1 });
+    const woodFaded = new THREE.MeshStandardMaterial({ color: 0x1a1510, roughness: 1 });
+    const coatOuter = new THREE.MeshStandardMaterial({ color: 0x0a0806, roughness: 0.98 });
+    const coatInner = new THREE.MeshStandardMaterial({ color: 0x120c0a, roughness: 1 });
+    const burlapDark = new THREE.MeshStandardMaterial({ color: 0x2b1e11, roughness: 0.92 });
+    const metalMat = new THREE.MeshStandardMaterial({ color: 0x333b3a, roughness: 0.5, metalness: 0.8 });
+    const tubeMat = new THREE.MeshStandardMaterial({ color: 0x228800, roughness: 0.3, transparent: true, opacity: 0.85 }); // Glowing green fear gas
+    const glowingEyeMat = new THREE.MeshBasicMaterial({ color: 0xffaa00 });
+    const deadEyeMat = new THREE.MeshBasicMaterial({ color: 0x331100 });
 
     const addPart = (geo, mat, x, y, z, name) => {
       const m = new THREE.Mesh(geo, mat);
@@ -63,186 +64,138 @@ export class Creatures {
       return m;
     };
 
-    addPart(new THREE.CylinderGeometry(0.03, 0.045, 2.6, 5), woodDark, 0, 1.3, 0);
-    const legGeo = new THREE.CylinderGeometry(0.04, 0.05, 0.9, 5);
-    const leftLeg = addPart(legGeo, coatOuter, -0.12, 0.45, 0, 'leftLeg');
-    const rightLeg = addPart(legGeo, coatOuter, 0.12, 0.45, 0, 'rightLeg');
+    // Central mounting pole
+    addPart(new THREE.CylinderGeometry(0.04, 0.05, 2.8, 5), woodDark, 0, 1.4, 0);
+    
+    // Tattered elongated legs
+    const legGeo = new THREE.CylinderGeometry(0.05, 0.07, 1.1, 5);
+    const leftLeg = addPart(legGeo, coatOuter, -0.16, 0.55, 0, 'leftLeg');
+    const rightLeg = addPart(legGeo, coatOuter, 0.16, 0.55, 0, 'rightLeg');
     for (const leg of [leftLeg, rightLeg]) {
-      for (let s = 0; s < 3; s++) {
-        const strip = new THREE.Mesh(
-          new THREE.PlaneGeometry(0.06, 0.15),
-          new THREE.MeshStandardMaterial({ color: 0x100d09, side: THREE.DoubleSide, transparent: true, opacity: 0.8 })
-        );
-        strip.position.set((Math.random() - 0.5) * 0.06, -0.2 + s * 0.15, 0.04);
-        strip.rotation.z = (Math.random() - 0.5) * 0.5;
-        leg.add(strip);
-      }
-      const boot = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.05, 0.08, 0.11, 6),
-        woodDark
+      const wraps = new THREE.Mesh(
+        new THREE.TorusGeometry(0.06, 0.015, 4, 8),
+        burlapDark
       );
-      boot.position.set(0, -0.48, 0.04);
-      leg.add(boot);
+      wraps.position.set(0, -0.1, 0);
+      leg.add(wraps);
     }
 
-    const torso = addPart(new THREE.CylinderGeometry(0.24, 0.28, 0.92, 8), coatOuter, 0, 1.36, 0.02, 'torso');
-    const belly = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.18, 0.22, 0.62, 6),
-      coatInner
-    );
-    belly.position.set(0, -0.04, 0.1);
-    torso.add(belly);
-    for (const side of [-1, 1]) {
-      const lapel = new THREE.Mesh(
-        new THREE.PlaneGeometry(0.16, 0.42),
-        new THREE.MeshStandardMaterial({ color: 0x23180f, roughness: 1, side: THREE.DoubleSide })
+    // Elongated skeletal torso wrapped in dark rags
+    const torso = addPart(new THREE.CylinderGeometry(0.2, 0.14, 0.95, 8), coatOuter, 0, 1.55, 0.02, 'torso');
+    // Gas tubes wrapping the torso
+    for (let t = 0; t < 3; t++) {
+      const tube = new THREE.Mesh(
+        new THREE.TorusGeometry(0.21 - t * 0.02, 0.012, 6, 12, Math.PI),
+        tubeMat
       );
-      lapel.position.set(side * 0.12, 0.1, 0.18);
-      lapel.rotation.set(0.08, 0, side * -0.28);
-      torso.add(lapel);
+      tube.position.set(0, -0.2 + t * 0.15, 0);
+      tube.rotation.x = Math.PI / 2 + Math.random() * 0.5;
+      tube.rotation.y = (Math.random() - 0.5);
+      torso.add(tube);
     }
+
+    // Ragged tail coat
     for (const side of [-1, 1]) {
       const tail = new THREE.Mesh(
-        new THREE.PlaneGeometry(0.16, 0.48),
-        new THREE.MeshStandardMaterial({ color: 0x110d09, roughness: 1, side: THREE.DoubleSide, transparent: true, opacity: 0.86 })
+        new THREE.PlaneGeometry(0.18, 0.65),
+        new THREE.MeshStandardMaterial({ color: 0x050403, roughness: 1, side: THREE.DoubleSide, transparent: true, opacity: 0.9 })
       );
-      tail.position.set(side * 0.12, -0.43, 0.02);
-      tail.rotation.z = side * 0.12;
+      tail.position.set(side * 0.14, -0.65, 0.04);
+      tail.rotation.z = side * 0.15;
       torso.add(tail);
     }
 
-    for (let s = 0; s < 6; s++) {
-      const straw = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.008, 0.005, 0.12 + Math.random() * 0.1, 3),
-        strawMat
-      );
-      straw.position.set(
-        (Math.random() - 0.5) * 0.34,
-        -0.2 + Math.random() * 0.55,
-        0.18
-      );
-      straw.rotation.set(Math.random(), Math.random(), Math.random());
-      torso.add(straw);
-    }
+    // Cross beam for shoulders
+    addPart(new THREE.BoxGeometry(1.9, 0.05, 0.05), woodFaded, 0, 1.95, 0);
 
-    addPart(new THREE.BoxGeometry(1.6, 0.04, 0.04), woodFaded, 0, 1.95, 0);
-
-    const armGeo = new THREE.CylinderGeometry(0.045, 0.035, 0.55, 6);
-    const leftArm = addPart(armGeo, coatOuter, -0.4, 1.7, 0, 'leftArm');
-    const rightArm = addPart(armGeo, coatOuter, 0.4, 1.7, 0, 'rightArm');
-    leftArm.rotation.z = 0.42;
-    rightArm.rotation.z = -0.42;
+    // Arms ending in syringe needle fingers / rusted blades
+    const armGeo = new THREE.CylinderGeometry(0.06, 0.035, 0.65, 6);
+    const leftArm = addPart(armGeo, coatOuter, -0.5, 1.8, 0, 'leftArm');
+    const rightArm = addPart(armGeo, coatOuter, 0.5, 1.8, 0, 'rightArm');
+    leftArm.rotation.z = 0.35;
+    rightArm.rotation.z = -0.35;
+    
     for (const [arm, side] of [[leftArm, -1], [rightArm, 1]]) {
-      const hand = new THREE.Mesh(
-        new THREE.SphereGeometry(0.06, 6, 6),
-        burlap
-      );
-      hand.position.set(0, -0.32, 0);
-      arm.add(hand);
-      for (let s = 0; s < 2; s++) {
-        const sleeveTear = new THREE.Mesh(
-          new THREE.PlaneGeometry(0.08, 0.18),
-          new THREE.MeshStandardMaterial({ color: 0x0d0b09, roughness: 1, side: THREE.DoubleSide, transparent: true, opacity: 0.82 })
+      const wristWrap = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.08, 6), burlapDark);
+      wristWrap.position.set(0, -0.32, 0);
+      arm.add(wristWrap);
+      
+      // Syringe needle hands
+      for (let f = 0; f < 3; f++) {
+        const needle = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.004, 0.012, 0.28, 4),
+          metalMat
         );
-        sleeveTear.position.set(side * 0.015, -0.18 + s * 0.07, 0.03);
-        sleeveTear.rotation.z = side * (0.18 + s * 0.08);
-        arm.add(sleeveTear);
-      }
-      for (let f = 0; f < 2; f++) {
-        const straw = new THREE.Mesh(
-          new THREE.CylinderGeometry(0.008, 0.004, 0.12, 3),
-          strawMat
-        );
-        straw.position.set(-0.015 + f * 0.03, -0.4, 0.01);
-        straw.rotation.z = side * (0.12 + f * 0.1);
-        hand.add(straw);
+        needle.position.set((f - 1) * 0.02, -0.48, Math.random() * 0.02);
+        needle.rotation.x = (Math.random() - 0.5) * 0.2;
+        needle.rotation.z = side * 0.1 + (f - 1) * 0.1;
+        arm.add(needle);
       }
     }
 
+    // Heavy noose around the neck
+    const noose = new THREE.Mesh(
+      new THREE.TorusGeometry(0.11, 0.025, 6, 12),
+      burlapDark
+    );
+    noose.position.set(0, 2.22, 0.06);
+    noose.rotation.x = Math.PI / 2 + 0.1;
+    g.add(noose);
+
+    // Gas Mask Burlap Head
     const headGroup = new THREE.Group();
     headGroup.name = 'head';
-    headGroup.position.set(0.03, 2.46, 0.01);
-    headGroup.rotation.z = 0.12;
+    headGroup.position.set(0, 2.45, 0.08);
+    headGroup.rotation.x = 0.2; // staring down
     g.add(headGroup);
 
-    const head = new THREE.Mesh(new THREE.SphereGeometry(0.2, 8, 6), burlap);
-    head.scale.set(0.96, 1.18, 0.9);
+    // Burlap sack
+    const head = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.18, 0.38, 8), burlapDark);
     headGroup.add(head);
 
-    const cheekPatch = new THREE.Mesh(
-      new THREE.PlaneGeometry(0.12, 0.18),
-      new THREE.MeshStandardMaterial({ color: 0x776145, roughness: 0.96, side: THREE.DoubleSide })
-    );
-    cheekPatch.position.set(-0.06, -0.02, 0.17);
-    cheekPatch.rotation.z = -0.28;
-    headGroup.add(cheekPatch);
-
-    const nose = new THREE.Mesh(
-      new THREE.ConeGeometry(0.028, 0.12, 4),
-      woodFaded
-    );
-    nose.position.set(0.02, -0.01, 0.2);
-    nose.rotation.x = Math.PI / 2;
-    nose.rotation.z = 0.2;
-    headGroup.add(nose);
-
-    const mouth = new THREE.Mesh(new THREE.PlaneGeometry(0.18, 0.02), stitchMat);
-    mouth.position.set(0.005, -0.085, 0.205);
-    mouth.rotation.z = -0.08;
-    headGroup.add(mouth);
-    for (let s = 0; s < 7; s++) {
-      const stitch = new THREE.Mesh(
-        new THREE.PlaneGeometry(0.008, 0.05),
-        stitchMat
-      );
-      stitch.position.set(-0.065 + s * 0.022, -0.083 + Math.sin(s * 0.8) * 0.01, 0.206);
-      stitch.rotation.z = 0.22 + (s % 2 === 0 ? -0.18 : 0.14);
-      headGroup.add(stitch);
+    // Twin organic respirator filters on the cheeks
+    for (const side of [-1, 1]) {
+      const filter = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.05, 8), metalMat);
+      filter.position.set(side * 0.15, -0.06, 0.14);
+      filter.rotation.z = side * Math.PI / 2;
+      filter.rotation.y = side * 0.4;
+      headGroup.add(filter);
     }
+    
+    // Fear toxin glowing tube injecting into the mask
+    const headTube = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.3, 5), tubeMat);
+    headTube.position.set(0, -0.22, 0.15);
+    headTube.rotation.x = -0.4;
+    headGroup.add(headTube);
 
-    const leftEye = new THREE.Mesh(new THREE.CircleGeometry(0.03, 3), emberEye);
-    leftEye.position.set(-0.075, 0.04, 0.195);
-    leftEye.rotation.z = -0.3;
+    // Dead eye socket and glowing gas eye
+    const leftEye = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.03, 6), glowingEyeMat);
+    leftEye.position.set(-0.07, 0.04, 0.16);
+    leftEye.rotation.x = Math.PI / 2;
     headGroup.add(leftEye);
-    const rightEye = new THREE.Mesh(new THREE.CircleGeometry(0.017, 5), dimEye);
-    rightEye.position.set(0.055, 0.065, 0.196);
+    
+    // Asymmetric dead eye
+    const rightEye = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.02, 6), deadEyeMat);
+    rightEye.position.set(0.07, 0.05, 0.16);
+    rightEye.rotation.x = Math.PI / 2 + 0.1;
     headGroup.add(rightEye);
-    for (const [x, y, angle] of [[0.055, 0.065, 0.5], [0.057, 0.065, -0.48]]) {
-      const stitch = new THREE.Mesh(
-        new THREE.PlaneGeometry(0.008, 0.06),
-        stitchMat
-      );
-      stitch.position.set(x, y, 0.198);
-      stitch.rotation.z = angle;
-      headGroup.add(stitch);
+
+    // Wide, stitched Joker-like mouth using vertical staples
+    const mouthCut = new THREE.Mesh(new THREE.PlaneGeometry(0.24, 0.01), new THREE.MeshBasicMaterial({ color: 0x000000 }));
+    mouthCut.position.set(0, -0.08, 0.182);
+    headGroup.add(mouthCut);
+    for (let s = 0; s < 12; s++) {
+      const staple = new THREE.Mesh(new THREE.PlaneGeometry(0.008, 0.04), metalMat);
+      staple.position.set(-0.11 + s * 0.02, -0.08, 0.183);
+      staple.rotation.z = (Math.random() - 0.5) * 0.4;
+      headGroup.add(staple);
     }
 
-    for (let r = 0; r < 4; r++) {
-      const rag = new THREE.Mesh(
-        new THREE.PlaneGeometry(0.09, 0.18 + Math.random() * 0.06),
-        new THREE.MeshStandardMaterial({ color: 0x1b1510, roughness: 1, side: THREE.DoubleSide, transparent: true, opacity: 0.84 })
-      );
-      rag.position.set(-0.08 + r * 0.05, 0.08 + Math.random() * 0.05, -0.03);
-      rag.rotation.set(
-        -0.12 + Math.random() * 0.18,
-        0,
-        -0.26 + r * 0.17
-      );
-      headGroup.add(rag);
-    }
-
-    const hatBrim = addPart(new THREE.CylinderGeometry(0.3, 0.34, 0.03, 10), woodDark, 0.02, 2.68, 0);
-    hatBrim.rotation.z = -0.12;
-    const hatTop = addPart(new THREE.CylinderGeometry(0.11, 0.16, 0.27, 10), woodDark, 0.05, 2.83, -0.02);
-    hatTop.rotation.set(0.02, 0, -0.18);
-
-    const rope = new THREE.Mesh(
-      new THREE.TorusGeometry(0.14, 0.012, 4, 12),
-      new THREE.MeshStandardMaterial({ color: 0x3a2a0a, roughness: 1 })
-    );
-    rope.position.set(0, 2.25, 0);
-    rope.rotation.x = Math.PI / 2;
-    g.add(rope);
+    // Tattered witch/scarecrow hat
+    const hatBrim = addPart(new THREE.CylinderGeometry(0.35, 0.38, 0.02, 10), coatOuter, 0, 2.65, 0.06);
+    hatBrim.rotation.x = 0.1;
+    const hatTop = addPart(new THREE.ConeGeometry(0.18, 0.45, 8), coatOuter, 0, 2.85, 0.02);
+    hatTop.rotation.set(0.15, 0, -0.15); // crooked
 
     return g;
   }
@@ -318,30 +271,34 @@ export class Creatures {
         case 'idle':
           this._poseIdle(sc, sway);
 
-          if (!sc.triggered && sc.willScare && dist < 11.5 && dist > 2.5 && playerMotion.speed > 0.1) {
+          // Jump scare trigger conditions: Much looser angle required so they actually trigger
+          if (!sc.triggered && sc.willScare && dist < 12.5 && dist > 1.5 && playerMotion.speed > 0.05) {
             const move = this._normalize2(playerMotion.x, playerMotion.z);
             const toward = this._normalize2(sc.x - playerXZ.x, sc.z - playerXZ.z);
             const approachDot = move.x * toward.x + move.z * toward.z;
 
-            if (approachDot > 0.76) {
+            // Trigger if you are even vaguely walking towards it (-0.2 is very loose)
+            if (approachDot > -0.2) {
               this._triggerAmbush(sc, playerXZ, playerMotion, onScare);
             }
           }
           break;
 
         case 'ambush': {
-          const jumpT = Math.min(1, sc.timer / 0.17);
-          const jumpEase = 1 - Math.pow(1 - jumpT, 4);
+          // Double the speed of the leap (timer / 0.08 instead of 0.17)
+          const jumpT = Math.min(1, sc.timer / 0.08);
+          // Explode forward instead of smooth ease
+          const jumpEase = 1 - Math.pow(1 - jumpT, 5);
           sc.mesh.position.x = THREE.MathUtils.lerp(sc.ambushFrom.x, sc.ambushTo.x, jumpEase);
           sc.mesh.position.z = THREE.MathUtils.lerp(sc.ambushFrom.z, sc.ambushTo.z, jumpEase);
-          sc.mesh.position.y = Math.sin(Math.min(1, sc.timer / 0.24) * Math.PI) * 0.55;
+          sc.mesh.position.y = Math.sin(Math.min(1, sc.timer / 0.12) * Math.PI) * 0.7;
           sc.mesh.lookAt(playerXZ.x, 1.3 + sc.mesh.position.y * 0.2, playerXZ.z);
 
           if (sc.arms[0]) {
-            sc.arms[0].rotation.x = -1.1;
-            sc.arms[1].rotation.x = -1.1;
-            sc.arms[0].rotation.z = 0.18;
-            sc.arms[1].rotation.z = -0.18;
+            sc.arms[0].rotation.x = -1.8; // Arms raised aggressively high
+            sc.arms[1].rotation.x = -1.8;
+            sc.arms[0].rotation.z = 0.4;
+            sc.arms[1].rotation.z = -0.4;
           }
           if (sc.head) {
             sc.head.rotation.x = -0.35 + Math.sin(sc.timer * 12) * 0.1;
@@ -352,15 +309,17 @@ export class Creatures {
             sc.torso.rotation.x = -0.22;
           }
           if (sc.leftLeg && sc.rightLeg) {
-            sc.leftLeg.rotation.x = -0.55;
-            sc.rightLeg.rotation.x = -0.55;
+            sc.leftLeg.rotation.x = -0.7;
+            sc.rightLeg.rotation.x = -0.7;
           }
-          if (!sc.didBoo && sc.timer > 0.09) {
+          if (!sc.didBoo && sc.timer > 0.02) {
             sc.didBoo = true;
+            // Play the terrifying jump scare (the generic playJumpScare is way louder than the scarecrow one)
+            if (audio?.playJumpScare) audio.playJumpScare();
             if (audio?.playScarecrowBoo) audio.playScarecrowBoo();
           }
 
-          if (sc.timer > 0.42) {
+          if (sc.timer > 0.28) {
             sc.state = 'flee';
             sc.timer = 0;
             sc.mesh.position.y = 0;

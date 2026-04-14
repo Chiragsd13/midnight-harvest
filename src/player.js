@@ -212,33 +212,59 @@ export class Player {
       this.euler.z = sprinting ? Math.sin(this.bobTime * 0.5) * 0.02 : 0;
       this.cam.quaternion.setFromEuler(this.euler);
 
-      // Procedural crop-pushing for ALL movement, scaled by speed
-      const animSpeed = sprinting ? 11 : 6;
-      this.pushAnimPhase += dt * animSpeed;
-      
-      const cycleL = (Math.sin(this.pushAnimPhase) + 1) / 2; // 0 to 1
-      const cycleR = (Math.sin(this.pushAnimPhase + Math.PI) + 1) / 2; // 0 to 1
+      // First-person hand procedural animation
+      if (sprinting) {
+        // High intensity pumping (Sprint)
+        const animSpeed = 16;
+        this.pushAnimPhase += dt * animSpeed;
+        const phaseA = Math.sin(this.pushAnimPhase); // -1 to 1
+        
+        // Left hand pumps forward/back
+        this.lHand.position.z = this.lHandBase.pos.z + 0.15 - phaseA * 0.45;
+        this.lHand.position.x = this.lHandBase.pos.x + 0.12; // pulled tighter inward
+        this.lHand.position.y = this.lHandBase.pos.y + 0.25 + phaseA * 0.18; // pumps up and down
+        this.lHand.rotation.x = this.lHandBase.rot.x - 0.9 + phaseA * 0.7; // tight fist swinging
+        this.lHand.rotation.y = 0.25;
+        this.lHand.rotation.z = -0.3;
 
-      // Intensity heavily scaled up if sprinting
-      const pushZ = sprinting ? 0.3 : 0.15;
-      const pushX = sprinting ? 0.28 : 0.12;
-      const twistX = sprinting ? 0.5 : 0.2;
-      const twistZ = sprinting ? 0.5 : 0.2;
-      const hookY = sprinting ? 0.6 : 0.25;
-
-      // Left Hand: Thrust forward, Sweep out to left, Twist wrist outward
-      this.lHand.position.z = this.lHandBase.pos.z - 0.15 - cycleL * pushZ;
-      this.lHand.position.x = this.lHandBase.pos.x - 0.1 - cycleL * pushX;
-      this.lHand.rotation.x = this.lHandBase.rot.x - 0.4 - cycleL * twistX;
-      this.lHand.rotation.z = cycleL * twistZ;
-      this.lHand.rotation.y = cycleL * -hookY;
-
-      // Right Hand: Thrust forward, Sweep out to right, Twist wrist outward
-      this.rHand.position.z = this.rHandBase.pos.z - 0.15 - cycleR * pushZ;
-      this.rHand.position.x = this.rHandBase.pos.x + 0.1 + cycleR * pushX;
-      this.rHand.rotation.x = this.rHandBase.rot.x - 0.4 - cycleR * twistX;
-      this.rHand.rotation.z = cycleR * -twistZ;
-      this.rHand.rotation.y = cycleR * hookY;
+        // Right hand opposite phase
+        this.rHand.position.z = this.rHandBase.pos.z + 0.15 + phaseA * 0.45;
+        this.rHand.position.x = this.rHandBase.pos.x - 0.12; 
+        this.rHand.position.y = this.rHandBase.pos.y + 0.25 - phaseA * 0.18;
+        this.rHand.rotation.x = this.rHandBase.rot.x - 0.9 - phaseA * 0.7;
+        this.rHand.rotation.y = -0.25;
+        this.rHand.rotation.z = 0.3;
+      } else {
+        // Methodical crop pushing (Walk)
+        const animSpeed = 4.8;
+        this.pushAnimPhase += dt * animSpeed;
+        
+        const cL = Math.sin(this.pushAnimPhase);
+        const cR = Math.sin(this.pushAnimPhase + Math.PI);
+        
+        // Reach forward (positive sine), sweep backward/outward (negative sine)
+        const reachL = Math.max(0, cL);
+        const sweepL = Math.min(0, cL); // sweeps from 0 down to -1
+        
+        this.lHand.position.z = this.lHandBase.pos.z - 0.38 * reachL + 0.2 * sweepL; 
+        // Hands start slightly crossed toward center, then sweep violently out to the left
+        this.lHand.position.x = this.lHandBase.pos.x + 0.15 * reachL + 0.45 * sweepL; 
+        this.lHand.position.y = this.lHandBase.pos.y + 0.25 * reachL + 0.15;
+        this.lHand.rotation.x = this.lHandBase.rot.x - 0.5 - sweepL * 0.6;
+        // Twist wrist outward (palm facing stalks) during the sweep
+        this.lHand.rotation.y = -0.1 + sweepL * 1.6; 
+        this.lHand.rotation.z = reachL * 0.8 + 0.2;
+  
+        const reachR = Math.max(0, cR);
+        const sweepR = Math.min(0, cR);
+        
+        this.rHand.position.z = this.rHandBase.pos.z - 0.38 * reachR + 0.2 * sweepR;
+        this.rHand.position.x = this.rHandBase.pos.x - 0.15 * reachR - 0.45 * sweepR; 
+        this.rHand.position.y = this.rHandBase.pos.y + 0.25 * reachR + 0.15;
+        this.rHand.rotation.x = this.rHandBase.rot.x - 0.5 - sweepR * 0.6;
+        this.rHand.rotation.y = 0.1 - sweepR * 1.6;
+        this.rHand.rotation.z = -reachR * 0.8 - 0.2;
+      }
 
       // Footsteps: dirt crunch
       this.stepTimer += dt;

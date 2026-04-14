@@ -230,6 +230,8 @@ export class World {
     this.fieldSize = 180;
     this.stalkData = [];
     this.landmines = [];
+    this.pitCenter = new THREE.Vector3(45, 0, 48);
+    this.groundHoles = [];
     this.exitPos = new THREE.Vector3();
     this.exitDir = new THREE.Vector3();
     this.lightningLight = null;
@@ -253,17 +255,26 @@ export class World {
 
   build() {
     this._ground();
+    this._pits();
+    this._highway();      // must come before vegetation so we can exclude the road area
     this._groundDetails();
     this._sky();
     this._corn();
     this._lighting();
     this._fog();
     this._horizon();
-    this._highway();
     this._mines();
     this._fireSetup();
     this._fieldProps();
     return this.scene;
+  }
+
+  /* ---- helper: returns true when (x,z) falls on the highway surface ---- */
+  _isOnHighway(x, z) {
+    if (!this._hwBounds) return false;
+    const b = this._hwBounds;
+    // Road + shoulder width with a small margin
+    return x >= b.minX && x <= b.maxX && z >= b.minZ && z <= b.maxZ;
   }
 
   /* ---- realistic ground with varied textures (true midnight palette) ---- */
@@ -326,6 +337,58 @@ export class World {
     this.scene.add(mesh);
   }
 
+  /* ---- procedural deadly sinkholes ---- */
+  _pits() {
+    this.groundHoles = [];
+    
+    // Create random ground holes scattered around the map
+    const count = 8;
+    for(let i = 0; i < count; i++) {
+        const x = (Math.random() - 0.5) * this.fieldSize * 0.8;
+        const z = (Math.random() - 0.5) * this.fieldSize * 0.8;
+        // Keep spawn clear
+        if (Math.hypot(x, z) < 18) { i--; continue; } 
+        if (this._isOnHighway(x, z)) { i--; continue; }
+        
+        this.groundHoles.push({x, z, r: 1.6 + Math.random() * 0.5});
+    }
+
+    // Main pit (used by older legacy logic in main.js)
+    if (!this._isOnHighway(this.pitCenter.x, this.pitCenter.z)) {
+        this.groundHoles.push({x: this.pitCenter.x, z: this.pitCenter.z, r: 2.2});
+    }
+
+    // Material for the abyssal darkness inside the hole
+    const pitGeo = new THREE.CircleGeometry(1, 16);
+    const pitMat = new THREE.MeshBasicMaterial({ color: 0x010101 }); 
+    const rimMat = new THREE.MeshStandardMaterial({ color: 0x080604, roughness: 1 });
+    
+    for (const h of this.groundHoles) {
+        const hole = new THREE.Mesh(pitGeo, pitMat);
+        hole.rotation.x = -Math.PI / 2;
+        hole.position.set(h.x, 0.05, h.z);
+        hole.scale.set(h.r, h.r, 1);
+        this.scene.add(hole);
+
+        // Raised dirt rim to make it slightly visible but easy to stumble into
+        const rim = new THREE.Mesh(
+            new THREE.TorusGeometry(h.r * 1.05, h.r * 0.18, 5, 12),
+            rimMat
+        );
+        rim.rotation.x = Math.PI / 2;
+        rim.position.set(h.x, 0.02, h.z);
+
+        // Jitter the rim for organic feeling
+        const posAttr = rim.geometry.attributes.position;
+        for (let j = 0; j < posAttr.count; j++) {
+            posAttr.setZ(j, posAttr.getZ(j) + (Math.random() - 0.5) * 0.12);
+        }
+        rim.geometry.computeVertexNormals();
+
+        this.scene.add(rim);
+    }
+  }
+
   /* ---- ground detail objects: rocks, dirt patches, mud, grass tufts ---- */
   _groundDetails() {
     const half = this.fieldSize / 2;
@@ -345,11 +408,10 @@ export class World {
       const geo = rockGeos[Math.floor(Math.random() * rockGeos.length)];
       const mat = rockMats[Math.floor(Math.random() * rockMats.length)];
       const rock = new THREE.Mesh(geo, mat);
-      rock.position.set(
-        (Math.random() - 0.5) * half * 1.8,
-        Math.random() * 0.04,
-        (Math.random() - 0.5) * half * 1.8
-      );
+      const rx = (Math.random() - 0.5) * half * 1.8;
+      const rz = (Math.random() - 0.5) * half * 1.8;
+      if (this._isOnHighway(rx, rz)) continue;
+      rock.position.set(rx, Math.random() * 0.04, rz);
       rock.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * 0.5);
       const s = 0.5 + Math.random() * 1.2;
       rock.scale.set(s, s * (0.4 + Math.random() * 0.6), s);
@@ -359,6 +421,9 @@ export class World {
     // Mud puddles (very dark, slightly reflective so moon catches them)
     for (let i = 0; i < 55; i++) {
       const r = 0.8 + Math.random() * 2.5;
+      const px = (Math.random() - 0.5) * half * 1.6;
+      const pz = (Math.random() - 0.5) * half * 1.6;
+      if (this._isOnHighway(px, pz)) continue;
       const pg = new THREE.CircleGeometry(r, 12);
       const pm = new THREE.MeshStandardMaterial({
         color: new THREE.Color().setHSL(0.58, 0.15, 0.015 + Math.random() * 0.012),
@@ -367,17 +432,16 @@ export class World {
       });
       const puddle = new THREE.Mesh(pg, pm);
       puddle.rotation.x = -Math.PI / 2;
-      puddle.position.set(
-        (Math.random() - 0.5) * half * 1.6,
-        0.005,
-        (Math.random() - 0.5) * half * 1.6
-      );
+      puddle.position.set(px, 0.005, pz);
       this.scene.add(puddle);
     }
 
     // Small water puddles (clear water with reflections)
     for (let i = 0; i < 22; i++) {
       const wr = 0.3 + Math.random() * 1.0;
+      const wx = (Math.random() - 0.5) * half * 1.3;
+      const wz = (Math.random() - 0.5) * half * 1.3;
+      if (this._isOnHighway(wx, wz)) continue;
       const wpg = new THREE.CircleGeometry(wr, 10);
       const wpm = new THREE.MeshStandardMaterial({
         color: 0x081822,
@@ -388,11 +452,7 @@ export class World {
       });
       const wp = new THREE.Mesh(wpg, wpm);
       wp.rotation.x = -Math.PI / 2;
-      wp.position.set(
-        (Math.random() - 0.5) * half * 1.3,
-        0.007,
-        (Math.random() - 0.5) * half * 1.3
-      );
+      wp.position.set(wx, 0.007, wz);
       this.scene.add(wp);
       // Wet earth ring around puddle
       const ring = new THREE.Mesh(
@@ -410,6 +470,9 @@ export class World {
 
     // Dirt mounds / soil patches with different colors (much darker)
     for (let i = 0; i < 90; i++) {
+      const dx = (Math.random() - 0.5) * half * 1.8;
+      const dz = (Math.random() - 0.5) * half * 1.8;
+      if (this._isOnHighway(dx, dz)) continue;
       const pg = new THREE.CircleGeometry(1.0 + Math.random() * 3.5, 8);
       const hue = 0.06 + Math.random() * 0.04;
       const sat = 0.15 + Math.random() * 0.2;
@@ -420,11 +483,7 @@ export class World {
       });
       const patch = new THREE.Mesh(pg, pm);
       patch.rotation.x = -Math.PI / 2;
-      patch.position.set(
-        (Math.random() - 0.5) * half * 1.8,
-        0.006 + Math.random() * 0.01,
-        (Math.random() - 0.5) * half * 1.8
-      );
+      patch.position.set(dx, 0.006 + Math.random() * 0.01, dz);
       this.scene.add(patch);
     }
 
@@ -435,6 +494,9 @@ export class World {
       side: THREE.DoubleSide,
     });
     for (let i = 0; i < 240; i++) {
+      const cx = (Math.random() - 0.5) * half * 1.8;
+      const cz = (Math.random() - 0.5) * half * 1.8;
+      if (this._isOnHighway(cx, cz)) continue;
       const cluster = new THREE.Group();
       const bladeCount = 3 + Math.floor(Math.random() * 5);
       for (let b = 0; b < bladeCount; b++) {
@@ -460,11 +522,7 @@ export class World {
         blade.rotation.x = -0.1 + Math.random() * 0.2;
         cluster.add(blade);
       }
-      cluster.position.set(
-        (Math.random() - 0.5) * half * 1.8,
-        0.01,
-        (Math.random() - 0.5) * half * 1.8
-      );
+      cluster.position.set(cx, 0.01, cz);
       this.scene.add(cluster);
     }
 
@@ -472,13 +530,12 @@ export class World {
     const debrisMat = new THREE.MeshStandardMaterial({ color: 0x2c2514, roughness: 0.95 });
     for (let i = 0; i < 95; i++) {
       const len = 1.0 + Math.random() * 2.5;
+      const dbx = (Math.random() - 0.5) * half * 1.6;
+      const dbz = (Math.random() - 0.5) * half * 1.6;
+      if (this._isOnHighway(dbx, dbz)) continue;
       const dg = new THREE.CylinderGeometry(0.015, 0.025, len, 4);
       const debris = new THREE.Mesh(dg, debrisMat);
-      debris.position.set(
-        (Math.random() - 0.5) * half * 1.6,
-        0.02,
-        (Math.random() - 0.5) * half * 1.6
-      );
+      debris.position.set(dbx, 0.02, dbz);
       debris.rotation.x = Math.PI / 2;
       debris.rotation.z = Math.random() * Math.PI;
       this.scene.add(debris);
@@ -497,11 +554,10 @@ export class World {
     const gDummy = new THREE.Object3D();
     const grassColor = new THREE.Color();
     for (let i = 0; i < grassCount; i++) {
-      gDummy.position.set(
-        (Math.random() - 0.5) * half * 1.6,
-        0.04 + Math.random() * 0.02,
-        (Math.random() - 0.5) * half * 1.6
-      );
+      const gx = (Math.random() - 0.5) * half * 1.6;
+      const gz = (Math.random() - 0.5) * half * 1.6;
+      if (this._isOnHighway(gx, gz)) continue;
+      gDummy.position.set(gx, 0.04 + Math.random() * 0.02, gz);
       gDummy.rotation.set(
         -0.08 + Math.random() * 0.16,
         Math.random() * Math.PI,
@@ -533,13 +589,13 @@ export class World {
     // --- Old broken fence posts with occasional wire ---
     for (let i = 0; i < 30; i++) {
       const height = 0.8 + Math.random() * 1.6;
+      const fpx = (Math.random() - 0.5) * half * 1.6;
+      const fpz = (Math.random() - 0.5) * half * 1.6;
+      if (this._isOnHighway(fpx, fpz)) continue;
       const post = new THREE.Mesh(
         new THREE.CylinderGeometry(0.035, 0.055, height, 5), woodMat
       );
-      post.position.set(
-        (Math.random() - 0.5) * half * 1.6, height / 2,
-        (Math.random() - 0.5) * half * 1.6
-      );
+      post.position.set(fpx, height / 2, fpz);
       post.rotation.set(
         (Math.random() - 0.5) * 0.25, Math.random() * Math.PI,
         (Math.random() - 0.5) * 0.35
@@ -965,6 +1021,7 @@ export class World {
         const x = bx + (Math.random() - 0.5) * 0.25;
         const z = bz + (Math.random() - 0.5) * 0.25;
         if (Math.sqrt(x * x + z * z) < 1.25) continue;
+        if (this._isOnHighway(x, z)) continue;
         // Random gaps for realism (trampled paths, bare patches)
         if (Math.random() < 0.015) continue;
 
@@ -1228,8 +1285,25 @@ export class World {
     this.exitPos.set(x, 0, z);
     this.exitDir.set(x, 0, z).normalize();
 
+    // Store highway bounding box so vegetation can be excluded
     const roadLen = 40;
     const isNS = side === 0 || side === 2;
+    const margin = 7; // shoulder width + some extra clearance
+    if (isNS) {
+      this._hwBounds = {
+        minX: x - roadLen / 2 - margin,
+        maxX: x + roadLen / 2 + margin,
+        minZ: z - margin,
+        maxZ: z + margin,
+      };
+    } else {
+      this._hwBounds = {
+        minX: x - margin,
+        maxX: x + margin,
+        minZ: z - roadLen / 2 - margin,
+        maxZ: z + roadLen / 2 + margin,
+      };
+    }
 
     // Gravel shoulder (wider, visible from distance)
     const shoulderGeo = new THREE.PlaneGeometry(isNS ? roadLen : 10, isNS ? 10 : roadLen);
@@ -1288,39 +1362,85 @@ export class World {
       this.scene.add(ref);
     }
 
-    // Multiple lampposts along highway (visible from far)
-    const postMat = new THREE.MeshStandardMaterial({ color: 0x333333 });
-    for (let lp = 0; lp < 3; lp++) {
-      const lpOff = (lp - 1) * 12;
-      const px = isNS ? x + lpOff : x + 3.5;
-      const pz = isNS ? z + 3.5 : z + lpOff;
+    // Street lights along both sides of the highway
+    const postMat = new THREE.MeshStandardMaterial({ color: 0x444444, roughness: 0.7, metalness: 0.3 });
+    const streetLightCount = 7;
+    this.streetLights = [];
+    for (let lp = 0; lp < streetLightCount; lp++) {
+      const lpOff = (lp - Math.floor(streetLightCount / 2)) * (roadLen / streetLightCount);
 
-      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.08, 5.5, 6), postMat);
-      post.position.set(px, 2.75, pz);
-      this.scene.add(post);
+      // Place lights on both sides of the road
+      for (const sideOff of [-3.5, 3.5]) {
+        const px = isNS ? x + lpOff : x + sideOff;
+        const pz = isNS ? z + sideOff : z + lpOff;
 
-      // Light arm extending over road (curved pipe)
-      const arm = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.025, 0.025, isNS ? 1.5 : 1.5, 5),
-        postMat
-      );
-      arm.position.set(px, 5.5, pz - (isNS ? 0.75 : 0));
-      arm.rotation.x = isNS ? Math.PI / 2 : 0;
-      arm.rotation.z = isNS ? 0 : Math.PI / 2;
-      this.scene.add(arm);
+        // Tall street light pole
+        const post = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.07, 6.5, 6), postMat);
+        post.position.set(px, 3.25, pz);
+        this.scene.add(post);
 
-      // Light fixture (rounded housing)
-      const fixture = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.15, 0.12, 0.06, 8),
-        new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.7 })
-      );
-      fixture.position.set(px, 5.45, pz - (isNS ? 2.5 : 0));
-      this.scene.add(fixture);
+        // Base plate
+        const base = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.15, 0.18, 0.08, 8),
+          postMat
+        );
+        base.position.set(px, 0.04, pz);
+        this.scene.add(base);
 
-      // Dim, realistic light (local glow only)
-      const rl = new THREE.PointLight(0xffaa44, 0.45, 18, 2.0);
-      rl.position.set(px, 5.3, pz - (isNS ? 2 : 0));
-      this.scene.add(rl);
+        // Light arm extending over road (curved pipe)
+        const armDir = sideOff > 0 ? -1 : 1;
+        const arm = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.02, 0.02, 2.0, 5),
+          postMat
+        );
+        if (isNS) {
+          arm.position.set(px, 6.45, pz + armDir * 1.0);
+          arm.rotation.x = Math.PI / 2;
+        } else {
+          arm.position.set(px + armDir * 1.0, 6.45, pz);
+          arm.rotation.z = Math.PI / 2;
+        }
+        this.scene.add(arm);
+
+        // Light fixture housing (cobra-head shape)
+        const fixture = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.12, 0.08, 0.06, 8),
+          new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.6 })
+        );
+        const fixtureX = isNS ? px : px + armDir * 2.0;
+        const fixtureZ = isNS ? pz + armDir * 2.0 : pz;
+        fixture.position.set(fixtureX, 6.4, fixtureZ);
+        this.scene.add(fixture);
+
+        // Lens (glowing face on the underside)
+        const lens = new THREE.Mesh(
+          new THREE.CircleGeometry(0.08, 8),
+          new THREE.MeshBasicMaterial({ color: 0xffe8a0 })
+        );
+        lens.rotation.x = Math.PI / 2;
+        lens.position.set(fixtureX, 6.36, fixtureZ);
+        this.scene.add(lens);
+
+        // Street light — warm sodium-vapor glow
+        const rl = new THREE.PointLight(0xffaa44, 0.6, 22, 2.0);
+        rl.position.set(fixtureX, 6.3, fixtureZ);
+        this.scene.add(rl);
+        this.streetLights.push(rl);
+
+        // Ground light pool (cone of light on road surface)
+        const pool = new THREE.Mesh(
+          new THREE.CircleGeometry(2.5, 16),
+          new THREE.MeshBasicMaterial({
+            color: 0xffcc66,
+            transparent: true,
+            opacity: 0.04,
+            depthWrite: false,
+          })
+        );
+        pool.rotation.x = -Math.PI / 2;
+        pool.position.set(fixtureX, 0.015, fixtureZ);
+        this.scene.add(pool);
+      }
     }
 
     // Guardrail (metal barrier along one side)

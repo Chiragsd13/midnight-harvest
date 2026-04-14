@@ -474,6 +474,39 @@ export class Audio {
     roar.start(t);
     roar.stop(t + 1.7);
 
+    // Terrifying human scream overlay
+    const screamOsc1 = this.ctx.createOscillator();
+    screamOsc1.type = 'sawtooth';
+    screamOsc1.frequency.setValueAtTime(800, t);
+    screamOsc1.frequency.exponentialRampToValueAtTime(2200, t + 0.3);
+    screamOsc1.frequency.exponentialRampToValueAtTime(1400, t + 1.2);
+    
+    const screamOsc2 = this.ctx.createOscillator();
+    screamOsc2.type = 'square';
+    screamOsc2.frequency.setValueAtTime(820, t);
+    screamOsc2.frequency.exponentialRampToValueAtTime(2250, t + 0.3);
+    screamOsc2.frequency.exponentialRampToValueAtTime(1380, t + 1.2);
+
+    const screamLFO = this.ctx.createOscillator();
+    screamLFO.frequency.value = 55; // harsh rattle/gurgle
+    const screamLFOGain = this._gain(350);
+    screamLFO.connect(screamLFOGain);
+    screamLFOGain.connect(screamOsc1.frequency);
+    screamLFOGain.connect(screamOsc2.frequency);
+
+    const screamFilt = this._filter('bandpass', 1800, 1.5);
+    const screamGain = this._gain(0);
+    screamGain.gain.setValueAtTime(0.001, t);
+    screamGain.gain.linearRampToValueAtTime(1.0, t + 0.15); // sharp onset
+    screamGain.gain.exponentialRampToValueAtTime(0.01, t + 1.5);
+
+    this._pipe(screamOsc1, screamFilt, screamGain);
+    this._pipe(screamOsc2, screamFilt, screamGain);
+
+    screamOsc1.start(t); screamOsc1.stop(t + 1.6);
+    screamOsc2.start(t); screamOsc2.stop(t + 1.6);
+    screamLFO.start(t); screamLFO.stop(t + 1.6);
+
     const heat = this.ctx.createOscillator();
     heat.type = 'triangle';
     heat.frequency.setValueAtTime(110, t);
