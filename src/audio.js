@@ -163,24 +163,46 @@ export class Audio {
   playFootstep() {
     if (!this.ctx) return;
     const t = this.ctx.currentTime;
-    const s = this._noise(0.09);
-    const f = this._filter('lowpass', 400 + Math.random() * 500);
-    const g = this._gain(0.45 + Math.random() * 0.15); // Much louder base gain
-    g.gain.setValueAtTime(g.gain.value, t);
-    g.gain.exponentialRampToValueAtTime(0.001, t + 0.09);
-    this._pipe(s, f, g); s.start(t); s.stop(t + 0.12);
+    const body = this._noise(0.08);
+    const bodyShape = this._filter('bandpass', 180 + Math.random() * 80, 0.7);
+    const bodyGain = this._gain(0);
+    bodyGain.gain.setValueAtTime(0.001, t);
+    bodyGain.gain.linearRampToValueAtTime(0.22 + Math.random() * 0.04, t + 0.012);
+    bodyGain.gain.exponentialRampToValueAtTime(0.001, t + 0.085);
+    this._pipe(body, bodyShape, bodyGain);
+    body.start(t);
+    body.stop(t + 0.1);
+
+    const grit = this._noise(0.05);
+    const gritHP = this._filter('highpass', 950 + Math.random() * 320);
+    const gritLP = this._filter('lowpass', 2100 + Math.random() * 420);
+    const gritGain = this._gain(0);
+    gritGain.gain.setValueAtTime(0.001, t + 0.01);
+    gritGain.gain.linearRampToValueAtTime(0.038 + Math.random() * 0.015, t + 0.022);
+    gritGain.gain.exponentialRampToValueAtTime(0.001, t + 0.065);
+    this._pipe(grit, gritHP, gritLP, gritGain);
+    grit.start(t + 0.01);
+    grit.stop(t + 0.075);
   }
 
   // Corn rustle: brushing past stalks while walking (Made louder)
   playCornRustle() {
     if (!this.ctx) return;
     const t = this.ctx.currentTime;
-    const s = this._noise(0.3);
-    const f = this._filter('bandpass', 1700 + Math.random() * 900, 0.9);
-    const g = this._gain(0.18 + Math.random() * 0.08); // Significantly louder
-    g.gain.setValueAtTime(g.gain.value, t);
-    g.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
-    this._pipe(s, f, g); s.start(t); s.stop(t + 0.35);
+    const passes = 2 + Math.floor(Math.random() * 2);
+    for (let i = 0; i < passes; i++) {
+      const at = t + i * 0.035 + Math.random() * 0.02;
+      const s = this._noise(0.11);
+      const hp = this._filter('highpass', 650 + Math.random() * 260);
+      const bp = this._filter('bandpass', 1200 + Math.random() * 700, 0.65);
+      const g = this._gain(0);
+      g.gain.setValueAtTime(0.001, at);
+      g.gain.linearRampToValueAtTime(0.03 + Math.random() * 0.018, at + 0.014);
+      g.gain.exponentialRampToValueAtTime(0.001, at + 0.1);
+      this._pipe(s, hp, bp, g);
+      s.start(at);
+      s.stop(at + 0.12);
+    }
   }
 
   // Heavy jump scare: louder, layered, terrifying
@@ -338,8 +360,8 @@ export class Audio {
     const t = this.ctx.currentTime;
     const s = this._noise(0.3);
     const f = this._filter('bandpass', 2100, 1);
-    const g = this._gain(0.05);
-    g.gain.setValueAtTime(0.05, t);
+    const g = this._gain(0.028);
+    g.gain.setValueAtTime(0.028, t);
     g.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
     this._pipe(s, f, g); s.start(t); s.stop(t + 0.35);
   }
@@ -384,11 +406,11 @@ export class Audio {
   playSomethingMoving() {
     if (!this.ctx) return;
     const t = this.ctx.currentTime;
-    for (let i = 0; i < 5; i++) {
-      const at = t + i * 0.18 + Math.random() * 0.08;
+    for (let i = 0; i < 3; i++) {
+      const at = t + i * 0.14 + Math.random() * 0.05;
       const s = this._noise(0.12);
-      const f = this._filter('bandpass', 1400 + Math.random() * 1200, 1.2);
-      const g = this._gain(0.028 + i * 0.01);
+      const f = this._filter('bandpass', 1000 + Math.random() * 700, 0.95);
+      const g = this._gain(0.016 + i * 0.005);
       g.gain.setValueAtTime(g.gain.value, at);
       g.gain.exponentialRampToValueAtTime(0.001, at + 0.12);
       this._pipe(s, f, g); s.start(at); s.stop(at + 0.15);

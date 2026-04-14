@@ -572,7 +572,9 @@ function gameLoop(time) {
     checkPit();
     checkHighway();
     checkTimeUp();
-    scheduleEvents(dt);
+    if (state.phase === 'playing') {
+      scheduleEvents(dt);
+    }
 
     // Sync spatial audio listener to camera
     const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
@@ -889,12 +891,13 @@ function triggerBurningDeath() {
 
 /* ---- random events (escalate horror over time) ---- */
 function scheduleEvents(dt) {
+  if (state.elapsed < 8) return;
   eventTimer += dt;
   fireCrackleTimer += dt;
 
-  if (fireCrackleTimer > 3 + Math.random() * 3) {
+  if (fireCrackleTimer > 4.5 + Math.random() * 4.5) {
     fireCrackleTimer = 0;
-    if (state.fireProgress > 0.08) audio.playFireCrackle();
+    if (state.fireProgress > 0.16) audio.playFireCrackle();
   }
 
   // Lightning during storm
@@ -907,9 +910,9 @@ function scheduleEvents(dt) {
     }
   }
 
-  // Much faster event cooldown base 
-  const baseInterval = 1.5 + Math.random() * 2;
-  const escalation = Math.max(0.3, 1.0 - state.fireProgress * 0.8);
+  // Keep ambience grounded and readable instead of machine-gunning unrelated stingers.
+  const baseInterval = 7 + Math.random() * 6;
+  const escalation = Math.max(0.65, 1.0 - state.fireProgress * 0.25);
   if (eventTimer > baseInterval * escalation) {
     eventTimer = 0;
     randomEvent();
@@ -949,51 +952,36 @@ function triggerLightning() {
 }
 
 function randomEvent() {
+  if (state.phase !== 'playing') return;
   const p = player.pos();
   const progress = state.fireProgress;
   const roll = Math.random();
 
-  // Remove pacing handcuffs to allow heavy events earlier.
-  // We want jump scares to hit hard.
-
-  if (roll < 0.12) {
-    if (shouldEvent(0.4)) creatures.spawnCrows(p, audio);
-  } else if (roll < 0.18 && shouldEvent(0.3)) {
-    const isBlack = Math.random() < 0.35;
-    creatures.spawnCat(p, audio, isBlack, state);
-  } else if (roll < 0.23) {
-    creatures.spawnSquirrel(p, audio);
-  } else if (roll < 0.30) {
-    audio.playOwl();
-  } else if (roll < 0.36) {
-    audio.playWhisper();
-  } else if (roll < 0.42) {
+  if (roll < 0.24) {
+    if (shouldEvent(0.3)) creatures.spawnCrows(p, audio);
+  } else if (roll < 0.52) {
     audio.playSomethingMoving();
-    if (Math.random() < 0.4) shakeCamera(250, 0.05);
-  } else if (roll < 0.48) {
-    // Brand new engaging feature: Dynamic Lightning Storms
-    triggerLightning();
-  } else if (roll < 0.54) {
-    audio.playHeartbeat(90 + state.fear + progress * 60);
-  } else if (roll < 0.60) {
-    audio.playRustle();
-  } else if (roll < 0.66) {
-    audio.playDistantScream();
+    if (progress > 0.22 && Math.random() < 0.22) {
+      creatures.spawnSquirrel(p, audio);
+    }
   } else if (roll < 0.72) {
-    audio.playBreathing();
-    if (Math.random() < 0.6) shakeCamera(200, 0.04);
-  } else {
-    // Jump scare bracket explicitly opens up widely (28% overall chance per event trigger)
-    audio.playSomethingMoving();
-    setTimeout(() => audio.playWhisper(), 400);
-    setTimeout(() => {
-      // Much higher odds of direct jump scare
-      if (Math.random() < 0.65) {
-        audio.playJumpScare();
-        Effects.scareFlash();
-        shakeCamera(500, 0.2);
-      }
-    }, 1200);
+    if (state.weather === 'clear' || state.weather === 'foggy' || state.weather === 'snow') {
+      audio.playOwl();
+    } else {
+      audio.playSomethingMoving();
+    }
+  } else if (roll < 0.86) {
+    if (progress > 0.28 && shouldEvent(0.18)) {
+      const isBlack = Math.random() < 0.28;
+      creatures.spawnCat(p, audio, isBlack, state);
+    } else {
+      audio.playSomethingMoving();
+    }
+  } else if (state.weather === 'storm' && shouldEvent(0.24)) {
+    world.triggerLightning(camera.position);
+    setTimeout(() => audio.playThunder(), 450 + Math.random() * 1500);
+  } else if (shouldEvent(0.16)) {
+    creatures.spawnSquirrel(p, audio);
   }
 }
 
