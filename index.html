@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Midnight Harvest</title>
+  <link rel="stylesheet" href="/src/style.css">
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "/node_modules/three/build/three.module.js"
+      }
+    }
+  </script>
+</head>
+<body>
+  <div id="intro-screen">
+    <div id="title-wrap">
+      <h1 id="game-title">MIDNIGHT HARVEST</h1>
+      <p id="subtitle">Find the highway. Escape the fire. Stay alive.</p>
+      <button id="play-btn">PLAY</button>
+    </div>
+  </div>
+
+  <div id="blink-overlay"></div>
+  <div id="eyelid-top"></div>
+  <div id="eyelid-bottom"></div>
+  <div id="wake-briefing" class="hidden">
+    <div id="briefing-location" class="briefing-line">Location: Unknown Farm</div>
+    <div id="briefing-time" class="briefing-line">Time: 12:00 AM</div>
+    <div id="briefing-warning" class="briefing-line">Fire is spreading. You have about 5 minutes to escape before the smoke takes you.</div>
+  </div>
+
+  <div id="hud" class="hidden">
+    <div id="hud-location">Unknown Farm</div>
+    <div id="hud-time">12:00:00 AM</div>
+    <div id="hud-status">Fire spreading. Smoke closes in fast.</div>
+    <div id="hud-timer">5:00</div>
+    <div id="hud-run">Run Ready · 10.0s</div>
+    <div id="crosshair">+</div>
+  </div>
+
+  <div id="vignette"></div>
+  <div id="damage-overlay"></div>
+  <div id="scare-overlay"></div>
+  <div id="smoke-overlay"></div>
+  <div id="cough-overlay"></div>
+
+  <div id="end-screen" class="hidden">
+    <h1 id="end-title"></h1>
+    <p id="end-subtitle"></p>
+    <p id="end-detail"></p>
+    <button id="restart-btn">TRY AGAIN</button>
+  </div>
+
+  <div id="instructions" class="hidden">
+    <p>WASD to move | SHIFT to run | Mouse to look</p>
+  </div>
+
+  <canvas id="game-canvas"></canvas>
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,870 @@
+:root {
+  --ink-0: #040506;
+  --ink-1: #08090d;
+  --ink-2: #13151c;
+  --bone: #d8cfbf;
+  --mist: rgba(193, 201, 219, 0.62);
+  --blood: #8f2a1f;
+  --blood-glow: rgba(185, 61, 38, 0.35);
+  --ember: #f08542;
+  --gold-dust: rgba(208, 174, 116, 0.52);
+  --panel: rgba(8, 8, 10, 0.46);
+  --panel-border: rgba(214, 186, 146, 0.18);
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+}
+
+body {
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 50% 14%, rgba(34, 38, 52, 0.5), transparent 24%),
+    radial-gradient(circle at 50% 120%, rgba(72, 20, 8, 0.2), transparent 34%),
+    linear-gradient(180deg, #0c0e14 0%, #050608 44%, #030303 100%);
+  color: var(--bone);
+  font-family: "Book Antiqua", "Palatino Linotype", serif;
+  cursor: default;
+  touch-action: none;
+  overscroll-behavior: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+body.playing {
+  cursor: none;
+}
+
+body::before,
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+}
+
+body::before {
+  z-index: 22;
+  inset: -18%;
+  background:
+    repeating-linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0.016) 0,
+      rgba(255, 255, 255, 0.016) 1px,
+      transparent 1px,
+      transparent 5px
+    ),
+    repeating-linear-gradient(
+      0deg,
+      rgba(0, 0, 0, 0.05) 0,
+      rgba(0, 0, 0, 0.05) 2px,
+      transparent 2px,
+      transparent 7px
+    ),
+    radial-gradient(circle at 22% 24%, rgba(122, 33, 16, 0.11), transparent 30%),
+    radial-gradient(circle at 78% 12%, rgba(90, 102, 130, 0.09), transparent 26%);
+  mix-blend-mode: soft-light;
+  opacity: 0.5;
+  animation: grainShift 10s steps(6) infinite;
+}
+
+body::after {
+  z-index: 24;
+  background:
+    linear-gradient(180deg, rgba(0, 0, 0, 0.04) 0%, rgba(0, 0, 0, 0) 26%, rgba(0, 0, 0, 0.16) 100%),
+    radial-gradient(circle at center, transparent 36%, rgba(0, 0, 0, 0.18) 72%, rgba(0, 0, 0, 0.42) 100%);
+  opacity: 0.46;
+}
+
+#game-canvas {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 0;
+}
+
+#intro-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background:
+    radial-gradient(circle at 50% 35%, rgba(114, 24, 12, 0.14), transparent 22%),
+    linear-gradient(180deg, rgba(3, 4, 6, 0.9) 0%, rgba(4, 3, 4, 0.96) 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#intro-screen::before,
+#intro-screen::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+#intro-screen::before {
+  background:
+    radial-gradient(circle at 50% 38%, rgba(148, 48, 22, 0.16), transparent 26%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.015), rgba(0, 0, 0, 0.08));
+  mix-blend-mode: screen;
+}
+
+#intro-screen::after {
+  inset: 9%;
+  border: 1px solid rgba(192, 158, 110, 0.08);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.02) inset,
+    0 0 80px rgba(97, 22, 11, 0.12);
+}
+
+#intro-screen.fade-out {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 1.2s ease;
+}
+
+#title-wrap {
+  position: relative;
+  z-index: 1;
+  width: min(92vw, 760px);
+  padding: 2.8rem 2rem 3rem;
+  text-align: center;
+  opacity: 0;
+  animation: fadeUp 2.3s ease 0.45s forwards;
+}
+
+#game-title {
+  font-family: "Baskerville Old Face", "Garamond", serif;
+  font-size: clamp(3.1rem, 8vw, 6.8rem);
+  line-height: 0.9;
+  letter-spacing: 0.38em;
+  text-indent: 0.38em;
+  color: #dccbb4;
+  text-shadow:
+    0 0 8px rgba(255, 240, 222, 0.08),
+    0 0 24px rgba(121, 32, 18, 0.24),
+    0 0 72px rgba(121, 32, 18, 0.14);
+  animation: titleDrift 7s ease-in-out infinite, flicker 5s infinite;
+}
+
+#subtitle {
+  margin: 1.25rem auto 0;
+  max-width: 32rem;
+  color: rgba(222, 205, 180, 0.68);
+  font-size: 0.84rem;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  line-height: 1.8;
+}
+
+#play-btn,
+#restart-btn {
+  margin-top: 2.6rem;
+  min-width: 13.5rem;
+  padding: 0.95rem 2.5rem 1rem;
+  border: 1px solid rgba(200, 161, 110, 0.32);
+  border-radius: 999px;
+  background:
+    linear-gradient(180deg, rgba(36, 12, 9, 0.72), rgba(11, 8, 8, 0.82));
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.03) inset,
+    0 18px 36px rgba(0, 0, 0, 0.34),
+    0 0 40px rgba(121, 32, 18, 0.12);
+  color: #d8c5a6;
+  font-family: inherit;
+  font-size: 0.93rem;
+  letter-spacing: 0.34em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition:
+    transform 180ms ease,
+    box-shadow 180ms ease,
+    background 180ms ease,
+    color 180ms ease,
+    border-color 180ms ease;
+}
+
+#play-btn:hover,
+#restart-btn:hover {
+  transform: translateY(-2px);
+  border-color: rgba(235, 181, 102, 0.52);
+  background:
+    linear-gradient(180deg, rgba(88, 24, 17, 0.92), rgba(19, 10, 8, 0.92));
+  box-shadow:
+    0 0 0 1px rgba(255, 242, 224, 0.05) inset,
+    0 18px 44px rgba(0, 0, 0, 0.44),
+    0 0 48px rgba(185, 61, 38, 0.22);
+  color: #f0debd;
+}
+
+#play-btn:active,
+#restart-btn:active {
+  transform: translateY(0);
+}
+
+#play-btn:focus-visible,
+#restart-btn:focus-visible {
+  outline: 2px solid rgba(240, 195, 121, 0.85);
+  outline-offset: 4px;
+}
+
+#blink-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: #000;
+  pointer-events: none;
+  opacity: 0;
+}
+
+#eyelid-top,
+#eyelid-bottom {
+  position: fixed;
+  left: -5%;
+  width: 110%;
+  z-index: 51;
+  pointer-events: none;
+  height: 55%;
+  will-change: transform;
+}
+
+#eyelid-top {
+  top: 0;
+  background: linear-gradient(180deg,
+    #000 78%,
+    rgba(14, 7, 4, 0.97) 86%,
+    rgba(28, 14, 8, 0.72) 93%,
+    rgba(18, 9, 5, 0.22) 98%,
+    transparent 100%);
+  transform: translateY(-100%);
+}
+
+#eyelid-bottom {
+  bottom: 0;
+  background: linear-gradient(0deg,
+    #000 78%,
+    rgba(14, 7, 4, 0.97) 86%,
+    rgba(28, 14, 8, 0.72) 93%,
+    rgba(18, 9, 5, 0.22) 98%,
+    transparent 100%);
+  transform: translateY(100%);
+}
+
+#wake-briefing {
+  position: fixed;
+  inset: 0;
+  z-index: 53;
+  pointer-events: none;
+}
+
+#wake-briefing.hidden {
+  display: none;
+}
+
+.briefing-line {
+  position: absolute;
+  left: 50%;
+  width: min(86vw, 44rem);
+  text-align: center;
+  opacity: 0;
+  transform: translate(-50%, -50%);
+  transition:
+    transform 1.4s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.9s ease,
+    letter-spacing 1.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+#wake-briefing.show .briefing-line {
+  opacity: 1;
+}
+
+#briefing-location,
+#briefing-time {
+  color: rgba(224, 214, 196, 0.82);
+  font-size: clamp(0.8rem, 1vw, 0.96rem);
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  text-shadow:
+    0 0 18px rgba(0, 0, 0, 0.68),
+    0 0 28px rgba(106, 24, 10, 0.18);
+}
+
+#briefing-location {
+  top: calc(50% - 4.6rem);
+}
+
+#briefing-time {
+  top: 50%;
+}
+
+#briefing-warning {
+  top: calc(50% + 5.4rem);
+  width: min(80vw, 38rem);
+  color: rgba(236, 193, 130, 0.92);
+  font-family: "Baskerville Old Face", "Garamond", serif;
+  font-size: clamp(1rem, 1.6vw, 1.38rem);
+  line-height: 1.65;
+  letter-spacing: 0.05em;
+  text-wrap: balance;
+  text-shadow:
+    0 0 18px rgba(0, 0, 0, 0.74),
+    0 0 34px rgba(146, 42, 20, 0.2);
+}
+
+#wake-briefing.settle #briefing-location {
+  transform: translate(calc(-50vw + 8.8rem), calc(-50vh + 1.8rem)) scale(0.76);
+  opacity: 0;
+}
+
+#wake-briefing.settle #briefing-time {
+  transform: translate(calc(50vw - 8.4rem), calc(-50vh + 1.8rem)) scale(0.76);
+  opacity: 0;
+}
+
+#wake-briefing.settle #briefing-warning {
+  transform: translate(calc(50vw - 12rem), calc(-50vh + 5.7rem)) scale(0.7);
+  opacity: 0;
+}
+
+#hud {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  pointer-events: none;
+  padding: clamp(1.2rem, 2vw, 1.8rem) clamp(1rem, 3vw, 2rem);
+}
+
+#hud.hidden {
+  display: none;
+}
+
+#hud.intro-phase {
+  opacity: 0;
+}
+
+#hud.intro-phase.ready {
+  opacity: 1;
+  transition: opacity 0.8s ease;
+}
+
+#hud-location,
+#hud-time,
+#hud-status {
+  position: absolute;
+  color: rgba(212, 220, 235, 0.58);
+  font-size: 0.74rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  text-shadow: 0 0 12px rgba(0, 0, 0, 0.72);
+}
+
+#hud-location {
+  top: 1.4rem;
+  left: 1.8rem;
+  transition: opacity 3s ease;
+}
+
+#hud-time {
+  top: 1.35rem;
+  right: 1.9rem;
+}
+
+#hud-status {
+  top: 2.65rem;
+  right: 1.85rem;
+  max-width: min(34vw, 20rem);
+  text-align: right;
+  color: rgba(218, 195, 162, 0.62);
+  font-size: 0.63rem;
+  letter-spacing: 0.16em;
+  line-height: 1.55;
+}
+
+#hud-timer {
+  position: absolute;
+  top: 4.1rem;
+  right: 1.8rem;
+  color: rgba(240, 194, 120, 0.96);
+  font-family: "Baskerville Old Face", "Garamond", serif;
+  font-size: clamp(1.8rem, 3vw, 2.8rem);
+  letter-spacing: 0.12em;
+  text-shadow:
+    0 0 14px rgba(238, 131, 53, 0.18),
+    0 0 34px rgba(146, 42, 20, 0.2);
+}
+
+#hud-timer.urgent {
+  color: #ff7d5a;
+  text-shadow:
+    0 0 12px rgba(255, 88, 48, 0.48),
+    0 0 34px rgba(133, 23, 16, 0.42);
+  animation: pulse 0.62s infinite;
+}
+
+#hud-run {
+  position: absolute;
+  left: 1.8rem;
+  bottom: 1.7rem;
+  padding: 0.62rem 0.8rem 0.66rem;
+  border: 1px solid rgba(204, 177, 139, 0.16);
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(10, 10, 12, 0.54), rgba(6, 6, 8, 0.28));
+  color: rgba(222, 208, 184, 0.84);
+  font-size: 0.66rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  text-shadow: 0 0 10px rgba(0, 0, 0, 0.7);
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.18);
+}
+
+#hud-run.active {
+  color: rgba(242, 201, 132, 0.96);
+  border-color: rgba(240, 192, 118, 0.26);
+}
+
+#hud-run.cooldown {
+  color: rgba(212, 154, 138, 0.9);
+  border-color: rgba(185, 112, 92, 0.22);
+}
+
+#crosshair {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: rgba(240, 238, 230, 0.34);
+  font-size: 1rem;
+  font-weight: 400;
+  text-shadow: 0 0 10px rgba(255, 255, 255, 0.18);
+}
+
+#vignette {
+  position: fixed;
+  inset: 0;
+  z-index: 25;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at center, transparent 30%, rgba(0, 0, 0, 0.12) 68%, rgba(0, 0, 0, 0.44) 100%),
+    linear-gradient(180deg, rgba(0, 0, 0, 0.04), rgba(0, 0, 0, 0));
+}
+
+#damage-overlay,
+#scare-overlay,
+#smoke-overlay,
+#cough-overlay {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+}
+
+#damage-overlay {
+  z-index: 40;
+  background:
+    radial-gradient(circle at center, rgba(255, 174, 108, 0.08), transparent 22%),
+    radial-gradient(circle at center, transparent 14%, rgba(150, 16, 5, 0.82) 100%);
+  transition: opacity 0.15s;
+}
+
+#scare-overlay {
+  z-index: 45;
+  background:
+    radial-gradient(circle at center, rgba(255, 255, 255, 0.05) 0%, transparent 12%),
+    radial-gradient(circle at center, transparent 10%, rgba(0, 0, 0, 0.97) 64%);
+  transition: opacity 0.1s;
+}
+
+#smoke-overlay {
+  z-index: 20;
+  background:
+    radial-gradient(circle at 50% 88%, rgba(120, 52, 20, 0.32) 0%, rgba(58, 28, 14, 0.18) 28%, rgba(10, 7, 6, 0.04) 62%, rgba(0, 0, 0, 0) 100%),
+    radial-gradient(circle at 24% 58%, rgba(90, 42, 21, 0.1) 0%, rgba(20, 11, 8, 0) 56%),
+    linear-gradient(180deg, rgba(8, 8, 10, 0.02) 0%, rgba(25, 16, 11, 0.18) 78%, rgba(7, 5, 5, 0.28) 100%);
+  background-size: 140% 120%, 170% 170%, 120% 120%;
+  background-position: 50% 100%, 18% 40%, 50% 50%;
+  background-blend-mode: screen, screen, normal;
+  mix-blend-mode: screen;
+  transition: opacity 0.4s ease;
+  animation: smokeDrift 18s linear infinite;
+}
+
+#cough-overlay {
+  z-index: 42;
+  background: radial-gradient(circle at center, transparent 14%, rgba(102, 24, 10, 0.72) 100%);
+  transition: opacity 0.12s ease;
+}
+
+#end-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background:
+    radial-gradient(circle at 50% 32%, rgba(106, 24, 10, 0.12), transparent 24%),
+    rgba(0, 0, 0, 0.96);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  text-align: center;
+  opacity: 0;
+  transition: opacity 1.4s ease;
+}
+
+#end-screen.hidden {
+  display: none;
+}
+
+#end-screen.show {
+  opacity: 1;
+}
+
+#end-title {
+  font-family: "Baskerville Old Face", "Garamond", serif;
+  font-size: clamp(2.6rem, 6vw, 5.6rem);
+  line-height: 0.92;
+  letter-spacing: 0.28em;
+  text-indent: 0.28em;
+}
+
+#end-title.death {
+  color: #c85a47;
+  text-shadow: 0 0 30px rgba(156, 26, 14, 0.26);
+  animation: pulse 2s infinite;
+}
+
+#end-title.win {
+  color: #adc4be;
+  text-shadow: 0 0 22px rgba(104, 150, 132, 0.22);
+}
+
+#end-subtitle {
+  margin-top: 1.2rem;
+  max-width: 36rem;
+  color: rgba(214, 201, 181, 0.72);
+  font-size: 1rem;
+  line-height: 1.8;
+}
+
+#end-detail {
+  margin-top: 0.75rem;
+  color: rgba(157, 144, 127, 0.62);
+  font-size: 0.8rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+#instructions {
+  position: fixed;
+  left: 50%;
+  bottom: clamp(1.4rem, 6vh, 4rem);
+  transform: translateX(-50%);
+  z-index: 35;
+  max-width: min(92vw, 36rem);
+  padding: 0.8rem 1.1rem 0.84rem;
+  border: 1px solid var(--panel-border);
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(12, 11, 13, 0.6), rgba(6, 6, 8, 0.42));
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.02) inset,
+    0 8px 28px rgba(0, 0, 0, 0.24);
+  backdrop-filter: blur(8px);
+  color: rgba(221, 213, 199, 0.72);
+  font-size: 0.72rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  text-align: center;
+  line-height: 1.5;
+  pointer-events: none;
+}
+
+#instructions.hidden {
+  display: none;
+}
+
+#touch-ui {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  pointer-events: none;
+}
+
+#touch-ui.active {
+  display: block;
+}
+
+#touch-joy {
+  display: none;
+  position: fixed;
+  width: 140px;
+  height: 140px;
+  z-index: 61;
+  pointer-events: none;
+}
+
+#touch-joy-base {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 1px solid rgba(216, 195, 164, 0.24);
+  background: rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(5px);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.03) inset;
+}
+
+#touch-joy-stick {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 60px;
+  height: 60px;
+  margin: -30px 0 0 -30px;
+  border-radius: 50%;
+  background: rgba(139, 42, 31, 0.62);
+  border: 1px solid rgba(225, 156, 132, 0.42);
+  box-shadow:
+    0 0 20px rgba(143, 42, 31, 0.2),
+    0 0 0 1px rgba(255, 255, 255, 0.04) inset;
+  transition: transform 0.02s linear;
+}
+
+#touch-look-hint {
+  position: fixed;
+  top: 50%;
+  right: 1.6rem;
+  transform: translateY(-50%);
+  z-index: 61;
+  color: rgba(206, 206, 214, 0.2);
+  font-size: 0.72rem;
+  letter-spacing: 0.24em;
+  writing-mode: vertical-rl;
+  animation: touchHintFade 4s ease 2s forwards;
+}
+
+#touch-sprint {
+  position: fixed;
+  right: 1.6rem;
+  bottom: 1.8rem;
+  z-index: 62;
+  width: 86px;
+  height: 86px;
+  border-radius: 50%;
+  border: 1px solid rgba(202, 159, 112, 0.28);
+  background: rgba(8, 8, 10, 0.5);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.04) inset,
+    0 12px 26px rgba(0, 0, 0, 0.28);
+  color: rgba(224, 207, 181, 0.84);
+  font-family: inherit;
+  font-size: 0.92rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  pointer-events: auto;
+  touch-action: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  backdrop-filter: blur(6px);
+  cursor: pointer;
+}
+
+#touch-sprint.active {
+  background: rgba(139, 42, 31, 0.55);
+  color: #fff3e2;
+  border-color: rgba(235, 180, 99, 0.48);
+  box-shadow:
+    0 0 28px rgba(185, 61, 38, 0.24),
+    0 0 0 1px rgba(255, 255, 255, 0.05) inset;
+}
+
+#touch-ui.active ~ #hud #crosshair {
+  opacity: 0.4;
+}
+
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(32px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes flicker {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  45% {
+    opacity: 0.87;
+  }
+  48% {
+    opacity: 0.98;
+  }
+  51% {
+    opacity: 0.76;
+  }
+  54% {
+    opacity: 1;
+  }
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  50% {
+    opacity: 0.46;
+    transform: translateY(1px);
+  }
+}
+
+@keyframes titleDrift {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes grainShift {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+  25% {
+    transform: translate3d(-1.6%, 1.2%, 0);
+  }
+  50% {
+    transform: translate3d(1.3%, -1%, 0);
+  }
+  75% {
+    transform: translate3d(-1%, -1.4%, 0);
+  }
+  100% {
+    transform: translate3d(0.4%, 0.8%, 0);
+  }
+}
+
+@keyframes smokeDrift {
+  0% {
+    background-position: 50% 100%, 18% 40%, 50% 50%;
+  }
+  50% {
+    background-position: 56% 92%, 28% 46%, 50% 54%;
+  }
+  100% {
+    background-position: 62% 86%, 36% 52%, 50% 58%;
+  }
+}
+
+@keyframes touchHintFade {
+  to {
+    opacity: 0;
+  }
+}
+
+@media (max-width: 720px) {
+  #title-wrap {
+    padding: 2.2rem 1.2rem 2.4rem;
+  }
+
+  #game-title {
+    letter-spacing: 0.22em;
+    text-indent: 0.22em;
+    font-size: clamp(2.7rem, 14vw, 4.9rem);
+  }
+
+  #subtitle {
+    font-size: 0.72rem;
+    letter-spacing: 0.18em;
+  }
+
+  #play-btn,
+  #restart-btn {
+    min-width: 12rem;
+    padding-inline: 1.8rem;
+    font-size: 0.82rem;
+    letter-spacing: 0.26em;
+  }
+
+  #hud-location,
+  #hud-time {
+    font-size: 0.66rem;
+    letter-spacing: 0.16em;
+  }
+
+  #hud-location {
+    left: 1rem;
+  }
+
+  #hud-time,
+  #hud-timer {
+    right: 1rem;
+  }
+
+  #instructions {
+    width: min(92vw, 24rem);
+    border-radius: 1.2rem;
+    line-height: 1.7;
+  }
+
+  #briefing-warning {
+    width: min(86vw, 24rem);
+    top: calc(50% + 5.8rem);
+  }
+
+  #wake-briefing.settle #briefing-location {
+    transform: translate(calc(-50vw + 7rem), calc(-50vh + 1.6rem)) scale(0.72);
+  }
+
+  #wake-briefing.settle #briefing-time {
+    transform: translate(calc(50vw - 7rem), calc(-50vh + 1.6rem)) scale(0.72);
+  }
+
+  #wake-briefing.settle #briefing-warning {
+    transform: translate(calc(50vw - 8.4rem), calc(-50vh + 6rem)) scale(0.62);
+  }
+
+  #hud-status {
+    top: 2.5rem;
+    max-width: 11rem;
+    font-size: 0.56rem;
+  }
+
+  #hud-timer {
+    top: 3.9rem;
+  }
+
+  #hud-run {
+    left: 1rem;
+    bottom: 1rem;
+    width: min(72vw, 16rem);
+    font-size: 0.58rem;
+    line-height: 1.5;
+  }
+
+  #touch-look-hint {
+    right: 0.8rem;
+  }
+
+  #touch-sprint {
+    right: 1rem;
+    bottom: 1rem;
+  }
+}
