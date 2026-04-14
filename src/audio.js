@@ -458,6 +458,49 @@ export class Audio {
     }
   }
 
+  playBurningDeath() {
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime;
+
+    const roar = this._noise(1.6);
+    const roarHP = this._filter('highpass', 140);
+    const roarLP = this._filter('lowpass', 1800);
+    const roarGain = this._gain(0);
+    roarGain.gain.setValueAtTime(0.001, t);
+    roarGain.gain.linearRampToValueAtTime(0.2, t + 0.08);
+    roarGain.gain.linearRampToValueAtTime(0.16, t + 0.45);
+    roarGain.gain.exponentialRampToValueAtTime(0.001, t + 1.6);
+    this._pipe(roar, roarHP, roarLP, roarGain);
+    roar.start(t);
+    roar.stop(t + 1.7);
+
+    const heat = this.ctx.createOscillator();
+    heat.type = 'triangle';
+    heat.frequency.setValueAtTime(110, t);
+    heat.frequency.exponentialRampToValueAtTime(68, t + 1.2);
+    const heatLP = this._filter('lowpass', 240);
+    const heatGain = this._gain(0);
+    heatGain.gain.setValueAtTime(0.001, t);
+    heatGain.gain.linearRampToValueAtTime(0.13, t + 0.06);
+    heatGain.gain.exponentialRampToValueAtTime(0.001, t + 1.25);
+    this._pipe(heat, heatLP, heatGain);
+    heat.start(t);
+    heat.stop(t + 1.3);
+
+    for (let i = 0; i < 9; i++) {
+      const at = t + Math.random() * 0.9;
+      const crack = this._noise(0.08);
+      const crackBP = this._filter('bandpass', 1200 + Math.random() * 2200, 1.6);
+      const crackGain = this._gain(0);
+      crackGain.gain.setValueAtTime(0.001, at);
+      crackGain.gain.linearRampToValueAtTime(0.05 + Math.random() * 0.04, at + 0.008);
+      crackGain.gain.exponentialRampToValueAtTime(0.001, at + 0.08);
+      this._pipe(crack, crackBP, crackGain);
+      crack.start(at);
+      crack.stop(at + 0.1);
+    }
+  }
+
   // Cough: two-stage throat/chest burst with a softer rasp tail.
   playCough(intensity = 0.5) {
     if (!this.ctx) return;

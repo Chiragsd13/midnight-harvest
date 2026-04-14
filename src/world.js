@@ -1704,6 +1704,16 @@ export class World {
     group.add(mesh);
   }
 
+  getFireFrontRadius(progress) {
+    return 10 + progress * 95;
+  }
+
+  getFireLethalRadius(progress) {
+    // Fire sprites are large, and the interior of the ring should already read
+    // as burning ground. Keep the damage boundary aligned with what the player sees.
+    return this.getFireFrontRadius(progress) + 4.5;
+  }
+
   /* ---- runtime: fire progression (visible spreading fire) ---- */
   updateFire(progress) {
     this.fireLight.intensity = progress * 4;
@@ -1732,7 +1742,7 @@ export class World {
     // Animate volumetric fire blazes and smoke columns
     if (this.fireWalls) {
       for (const fw of this.fireWalls) {
-        const r = fw.baseR + progress * 95;
+        const r = this.getFireFrontRadius(progress);
         
         // Swaying fire base
         const xPos = this.fireOrigin.x + Math.cos(fw.angle + t * 0.05) * r;

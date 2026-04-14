@@ -1,5 +1,8 @@
 import * as THREE from 'three';
 
+const RUN_DURATION = 10;
+const RUN_COOLDOWN = 30;
+
 export class Player {
   constructor(camera, canvas, touch = null) {
     this.cam = camera;
@@ -144,6 +147,11 @@ export class Player {
 
     if (state.runCooldown > 0) {
       state.runCooldown = Math.max(0, state.runCooldown - dt);
+      if (state.runCooldown === 0) {
+        state.runTimeLeft = RUN_DURATION;
+      }
+    } else if (state.runTimeLeft <= 0) {
+      state.runTimeLeft = RUN_DURATION;
     }
 
     const dir = new THREE.Vector3();
@@ -160,7 +168,15 @@ export class Player {
     let sprinting = false;
     if (dir.lengthSq() > 0) {
       dir.normalize();
-      sprinting = sprintDown; // Unlimited frantic sprinting
+      if (sprintDown && state.runCooldown <= 0 && state.runTimeLeft > 0) {
+        sprinting = true;
+        state.runTimeLeft = Math.max(0, state.runTimeLeft - dt);
+        if (state.runTimeLeft <= 0) {
+          state.runTimeLeft = 0;
+          state.runCooldown = RUN_COOLDOWN;
+          sprinting = false;
+        }
+      }
     }
 
     const targetSpeed = sprinting ? this.sprintSpeed : this.walkSpeed;
@@ -287,7 +303,7 @@ export class Player {
     }
 
     state.isRunning = sprinting && horizontalSpeed > this.walkSpeed + 0.35;
-    state.stamina = state.runCooldown > 0 ? 0 : (state.runTimeLeft / 10) * 100;
+    state.stamina = state.runCooldown > 0 ? 0 : (state.runTimeLeft / RUN_DURATION) * 100;
 
     // No bounds clamping: field is unlimited
   }

@@ -29,6 +29,7 @@ const endSubtitle = $('end-subtitle');
 const endDetail = $('end-detail');
 const instructions = $('instructions');
 const canvas = $('game-canvas');
+const burnOverlay = $('burn-overlay');
 
 /* ---- engine ---- */
 let audio, renderer, camera, world, player, creatures, effects;
@@ -288,6 +289,7 @@ async function animateStandUp(groundY) {
 async function startGame() {
   audio.init();
   state.phase = 'intro';
+  if (burnOverlay) burnOverlay.style.opacity = '0';
   introScreen.classList.add('fade-out');
   await sleep(900);
   introScreen.style.display = 'none';
@@ -700,9 +702,8 @@ function checkFireCatchPlayer() {
   const dx = p.x - world.fireOrigin.x;
   const dz = p.z - world.fireOrigin.z;
   const dist = Math.sqrt(dx * dx + dz * dz);
-  // Fire visual radius expands around progress * 90-95. Lethal boundary is 85.
-  const lethalRadius = 10 + state.fireProgress * 85;
-  if (dist < lethalRadius && state.fireProgress > 0.3) {
+  const lethalRadius = world.getFireLethalRadius(state.fireProgress);
+  if (dist < lethalRadius && state.fireProgress > 0.06) {
     triggerBurningDeath();
   }
 }
@@ -833,21 +834,26 @@ function triggerSuffocation() {
 }
 
 function triggerBurningDeath() {
+  if (state.phase !== 'playing') return;
   state.phase = 'dying';
   
   const dmgOverlay = document.getElementById('damage-overlay');
   if (dmgOverlay) {
-    dmgOverlay.style.background = 'radial-gradient(circle, rgba(0,0,0,0) 0%, rgba(200,40,0,0.6) 60%, rgba(255,100,0,0.9) 100%)';
-    dmgOverlay.style.transition = 'opacity 1s ease';
-    dmgOverlay.style.opacity = '1.0';
+    dmgOverlay.style.background = 'radial-gradient(circle, rgba(255,196,120,0.12) 0%, rgba(255,104,24,0.28) 18%, rgba(110,18,0,0.72) 100%)';
+    dmgOverlay.style.transition = 'opacity 0.18s ease';
+    dmgOverlay.style.opacity = '0.8';
   }
 
-  // Brutal sound
-  audio.playJumpScare();
-  setTimeout(() => audio.playExplosion(), 200);
+  if (burnOverlay) {
+    burnOverlay.style.transition = 'opacity 0.22s ease';
+    burnOverlay.style.opacity = '1';
+  }
 
-  // Intense shake
-  shakeCamera(2000, 0.4);
+  audio.playBurningDeath();
+  setTimeout(() => audio.playFireCrackle(), 140);
+  setTimeout(() => audio.playBurningDeath(), 520);
+
+  shakeCamera(1500, 0.18);
 
   let fallStart = Date.now();
   const startY = camera.position.y;
@@ -878,6 +884,7 @@ function triggerBurningDeath() {
       setTimeout(() => {
         state.phase = 'ended';
         state.endingType = 'burnt';
+        if (burnOverlay) burnOverlay.style.opacity = '0';
         endTitle.textContent = 'BURNT ALIVE';
         endTitle.className = 'death';
         endSubtitle.textContent = 'The wall of flames overtook you. There was nowhere left to run.';
